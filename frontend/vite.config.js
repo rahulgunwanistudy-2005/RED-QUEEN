@@ -14,6 +14,8 @@ export default defineConfig({
       "/registry": API,
       "/events": API,
       "/slice": API,
+      "/harden": API,
+      "/traces": API,
       "/stream": { target: API, changeOrigin: true, ws: false },
     },
   },

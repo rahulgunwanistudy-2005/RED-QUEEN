@@ -1,14 +1,22 @@
 <script>
   import { onMount, onDestroy } from "svelte";
-  import { score, events, connected, connectStream, runSlice } from "./lib/store.js";
+  import {
+    score, events, connected, connectStream, runSlice, hardenRun, hydrateRuns,
+  } from "./lib/store.js";
   import ScoreDial from "./lib/ScoreDial.svelte";
   import LineageTree from "./lib/LineageTree.svelte";
+  import VerdictPanel from "./lib/VerdictPanel.svelte";
+  import TraceWaterfall from "./lib/TraceWaterfall.svelte";
 
   let es;
   let running = false;
+  let hardening = false;
+  let attackClass = "prompt_injection";
+  let remedy = "content";
 
   onMount(() => {
     es = connectStream();
+    hydrateRuns();
   });
   onDestroy(() => es && es.close());
 
@@ -18,6 +26,15 @@
       await runSlice();
     } finally {
       running = false;
+    }
+  }
+
+  async function triggerHarden() {
+    hardening = true;
+    try {
+      await hardenRun({ attackClass, remedy });
+    } finally {
+      hardening = false;
     }
   }
 </script>
@@ -52,10 +69,40 @@
     <button on:click={trigger} disabled={running}>
       {running ? "RUNNING…" : "RUN THIN SLICE"}
     </button>
+
+    <div class="harden">
+      <h3>HARDEN + VERIFY</h3>
+      <label
+        >attack
+        <select bind:value={attackClass} disabled={hardening}>
+          <option value="prompt_injection">prompt_injection</option>
+          <option value="tool_poisoning">tool_poisoning</option>
+        </select>
+      </label>
+      <label
+        >remedy
+        <select bind:value={remedy} disabled={hardening}>
+          <option value="content">content · strong (auto)</option>
+          <option value="exact">exact · weak (false-closed)</option>
+          <option value="identity">identity · destructive (approval)</option>
+        </select>
+      </label>
+      <button class="blue" on:click={triggerHarden} disabled={hardening}>
+        {hardening ? "HARDENING…" : "RUN HARDEN CYCLE"}
+      </button>
+    </div>
   </section>
 
   <section class="panel lineagepanel">
     <LineageTree />
+  </section>
+
+  <section class="panel verdictpanel">
+    <VerdictPanel />
+  </section>
+
+  <section class="panel waterfallpanel">
+    <TraceWaterfall />
   </section>
 
   <section class="panel streampanel">
@@ -143,8 +190,48 @@
   .lineagepanel {
     min-width: 0;
   }
+  .waterfallpanel {
+    min-width: 0;
+  }
   .streampanel {
     grid-column: 1 / -1;
+  }
+  .harden {
+    width: 100%;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .harden h3 {
+    margin: 0 0 2px;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .harden label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    gap: 8px;
+  }
+  .harden select {
+    background: #0d1620;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 11px;
+    flex: 1;
+  }
+  button.blue {
+    background: linear-gradient(180deg, #4aa8ff, #2f7fd0);
   }
   @media (max-width: 860px) {
     main {

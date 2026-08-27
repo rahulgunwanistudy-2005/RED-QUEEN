@@ -16,6 +16,7 @@ shims are faithful stand-ins, not stubs: `scan` really detects injection classes
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -27,7 +28,7 @@ from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProces
 
 import sentinel.config as config
 from sentinel.config import ARMOR_THRESHOLD, USE_REAL
-from sentinel.textnorm import armor_normalize
+from sentinel.textnorm import agent_normalize, armor_normalize
 
 # --- data shapes (the contract) ---------------------------------------------
 
@@ -47,6 +48,7 @@ class PolicyResult:
     applied: bool
     policy_id: str
     backend: str = "shim"
+    already: bool = False  # True => this call was a no-op (policy already applied)
 
 
 @dataclass
@@ -95,18 +97,31 @@ _SIG_DIRECTIVE: list[str] = [
 _SIGNAL_WEIGHT = 0.25  # four families -> max risk 1.0; threshold 0.45 => block at >=2 families
 
 
-def scan(payload: str, *, enforce: bool = False) -> ScanResult:
+def scan(payload: str, *, enforce: bool = False, agent_id: str | None = None) -> ScanResult:
     """Model Armor content scan. `enforce=False` = detection-only (signals are
     reported but the payload is still forwarded — the M0 monitor-mode baseline).
     `enforce=True` = Model Armor blocks at/above ARMOR_THRESHOLD; this is the
-    posture the M1 red-team must evolve past (and that M2 hardening turns on)."""
+    posture the M1 red-team must evolve past (and that M2 hardening turns on).
+
+    Applied M2 policies (SOF-169) are consulted through `sentinel.policy`: a
+    `deep_normalize` rule makes the scanner read through the agent's own decoder
+    (recovering leet/obfuscation evasions); a `blocklist_exact` rule blocks a
+    known raw-string hash; a `lower_threshold` rule tightens the block bar."""
     if USE_REAL["model_armor"]:
         return _real_scan(payload, enforce=enforce)
-    return _shim_scan(payload, enforce=enforce)
+    return _shim_scan(payload, enforce=enforce, agent_id=agent_id)
 
 
-def _shim_scan(payload: str, *, enforce: bool) -> ScanResult:
-    norm = armor_normalize(payload)
+def _shim_scan(payload: str, *, enforce: bool, agent_id: str | None = None) -> ScanResult:
+    # Consult the applied hardening policy (data, resolved from Postgres). Import
+    # lazily so a policy-free run never needs the M2 table.
+    from sentinel import policy
+
+    rules = policy.content_rules(agent_id)
+    # deep_normalize (SOF-169 strong patch): match on the agent's decoder output, so
+    # the leet/zero-width evasions the red-team used to slip past are recovered.
+    norm = agent_normalize(payload) if rules.deep_normalize else armor_normalize(payload)
+    threshold = rules.lowered_threshold if rules.lowered_threshold is not None else ARMOR_THRESHOLD
 
     fam_override = any(re.search(p, norm) for p in _SIG_OVERRIDE)
     fam_tool = any(tok in norm for tok in _SIG_TOOL)
@@ -128,18 +143,33 @@ def _shim_scan(payload: str, *, enforce: bool) -> ScanResult:
     if fam_tool:
         detected.append("tool_poisoning")
 
-    blocked = enforce and risk >= ARMOR_THRESHOLD
+    blocked = enforce and risk >= threshold
+    reason = (
+        f"enforced-block risk={risk}>=thr={threshold} signals={fired}"
+        if blocked
+        else (f"detected-monitor risk={risk} signals={fired}" if fired else "clean")
+    )
+
+    # blocklist_exact (SOF-169 weak patch): block a known raw payload hash. Deliberately
+    # brittle — an evolved variant has a different raw hash and slips past (FALSE-CLOSED).
+    if enforce and not blocked and rules.blocklist:
+        from sentinel.policy import raw_hash
+
+        if raw_hash(payload) in rules.blocklist:
+            blocked = True
+            detected = detected or ["prompt_injection"]
+            reason = f"enforced-block blocklist_exact hash={raw_hash(payload)}"
+
+    if rules.deep_normalize:
+        reason += " [policy:deep_normalize]"
+
     return ScanResult(
         blocked=blocked,
         detected=detected,
         score=risk,
         sanitized="" if blocked else payload,
         backend="shim",
-        reason=(
-            f"enforced-block risk={risk}>=thr={ARMOR_THRESHOLD} signals={fired}"
-            if blocked
-            else (f"detected-monitor risk={risk} signals={fired}" if fired else "clean")
-        ),
+        reason=reason,
     )
 
 
@@ -154,12 +184,46 @@ def _real_scan(payload: str, *, enforce: bool) -> ScanResult:  # pragma: no cove
 
 
 def enforce_policy(policy: dict[str, Any]) -> PolicyResult:
-    """Apply a Gateway / Model Armor / Identity policy. M0 records intent only;
-    the crash-recoverable state machine that really writes policy is M2 (SOF-16x)."""
+    """Apply a Gateway / Model Armor / Identity policy (SOF-169). Policy is DATA:
+    the shim path writes the delta into the `policies` table with `applied=TRUE`.
+
+    This is the exactly-once apply primitive for SOF-168's idempotency guard: the
+    write is `INSERT ... ON CONFLICT (policy_id) DO NOTHING`, and `policy_id` is
+    deterministic per (agent, payload). So a Pub/Sub redelivery or a post-crash
+    replay that re-invokes enforce_policy inserts NOTHING the second time — exactly
+    one applied row, one applied effect. `already=True` flags such a no-op replay."""
     if USE_REAL["cloud_run"] or USE_REAL["vertex_gemini"]:
         return _real_enforce(policy)
+
+    from sqlalchemy import text as _text
+
+    from sentinel.db import engine
+
     pid = str(policy.get("id", "policy-unnamed"))
-    return PolicyResult(applied=True, policy_id=pid, backend="shim")
+    with engine.begin() as conn:
+        row = conn.execute(
+            _text(
+                """
+                INSERT INTO policies
+                    (policy_id, agent_id, attack_class, target, payload_hash,
+                     delta, is_destructive, applied, applied_at)
+                VALUES
+                    (:pid, :aid, :ac, :tgt, :ph, (:delta)::jsonb, :destr, TRUE, now())
+                ON CONFLICT (policy_id) DO NOTHING
+                RETURNING id
+                """
+            ),
+            {
+                "pid": pid,
+                "aid": str(policy.get("agent_id", "")),
+                "ac": str(policy.get("attack_class", "")),
+                "tgt": str(policy.get("target", "")),
+                "ph": str(policy.get("payload_hash", "")),
+                "delta": json.dumps(policy),
+                "destr": bool(policy.get("is_destructive", False)),
+            },
+        ).fetchone()
+    return PolicyResult(applied=True, policy_id=pid, backend="shim", already=row is None)
 
 
 def _real_enforce(policy: dict[str, Any]) -> PolicyResult:  # pragma: no cover - needs GCP

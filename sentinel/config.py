@@ -30,6 +30,27 @@ DATABASE_URL = os.environ.get(
     "postgresql+psycopg2://sentinel:sentinel@localhost:5544/sentinel",
 )
 
+# The FIREWALLED verifier's OWN credentials (SOF-170). A distinct Postgres role
+# (`sentinel_verifier`, created in migrations/003) whose grants DENY read on the
+# red-team corpus + findings. Stands in for a distinct GCP Agent Identity; the
+# verifier subprocess runs with DATABASE_URL set to this so every query it makes
+# is under the restricted role. Derived from DATABASE_URL by default (same host)
+# so it tracks the compose vs host connection automatically.
+def _derive_verifier_url() -> str:
+    base = DATABASE_URL
+    # swap the leading "user:pass@" for the verifier role's credentials
+    if "@" in base and "://" in base:
+        scheme, rest = base.split("://", 1)
+        _creds, host = rest.split("@", 1)
+        return f"{scheme}://sentinel_verifier:verifierpass@{host}"
+    return base
+
+
+VERIFIER_DATABASE_URL = os.environ.get("VERIFIER_DATABASE_URL", _derive_verifier_url())
+
+# The single agent under test in the shim fleet (matches geap._SHIM_FLEET).
+AGENT_ID = os.environ.get("SENTINEL_AGENT_ID", "triage-agent")
+
 # Baseline Hardening Score for the M0 unhardened fleet (demo DoD: 41/red).
 BASELINE_SCORE = int(os.environ.get("BASELINE_SCORE", "41"))
 

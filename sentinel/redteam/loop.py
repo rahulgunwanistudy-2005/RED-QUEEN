@@ -58,6 +58,8 @@ def _candidate_event(o: Outcome, payload: Payload) -> dict:
         "origin": payload.origin,
         "blocked": o.scan_blocked,
         "bypass": o.bypass,
+        "privileged": o.privileged_executed,
+        "leaked": o.leaked_secret,
         "scan_score": o.scan_score,
         "scan_detected": o.scan_detected,
         "agent_action": o.agent_action,
@@ -76,8 +78,15 @@ def evolve(
     population: int = 4,
     survivors: int = 2,
     use_corpus: bool = True,
+    persist_corpus: bool = True,
+    persist_finding: bool = True,
     emit: Emit | None = None,
 ) -> EvolveResult:
+    """`persist_corpus`/`persist_finding` default True (the red-team campaign writes
+    both). The FIREWALLED verifier (SOF-170) reuses this exact loop with BOTH False
+    and `use_corpus=False`: it re-derives an evolved attack without reading or writing
+    the attacker's corpus/findings — and its restricted DB role would deny either
+    write anyway, so the firewall is enforced, not merely honoured."""
     emit = emit or (lambda _e: None)
     result = EvolveResult(
         attack_class=attack_class,
@@ -89,18 +98,19 @@ def evolve(
     )
 
     def run_and_record(p: Payload) -> tuple[Payload, Outcome]:
-        o = fire(p, enforce=True)
+        o = fire(p, enforce=True, persist_finding=persist_finding)
         emit(_candidate_event(o, p))
-        corpus.add(
-            attack_class=o.attack_class,
-            payload=p.content,
-            generation=o.generation,
-            bypass=o.bypass,
-            operators=o.operators,
-            parent_id=o.parent_id,
-            score=o.score,
-            trace_id=o.trace_id,
-        )
+        if persist_corpus:
+            corpus.add(
+                attack_class=o.attack_class,
+                payload=p.content,
+                generation=o.generation,
+                bypass=o.bypass,
+                operators=o.operators,
+                parent_id=o.parent_id,
+                score=o.score,
+                trace_id=o.trace_id,
+            )
         return p, o
 
     # --- gen 0: seed population ---------------------------------------------

@@ -102,10 +102,28 @@ _EXFIL_TOKENS = ("exportsecrets", "exfiltrate", "leaktheapikey")
 _ACTION_RE = re.compile(r"action([a-z0-9]+)")
 
 
+def _revoked(tool_name: str) -> bool:
+    """Identity-side policy check (SOF-169 revoke_identity / SOF-171). A revoked
+    capability cannot execute even if the payload cleared Model Armor — this is the
+    Agent Identity scope tightening, enforced here so the whole system honours it."""
+    from sentinel import policy
+
+    return tool_name in policy.revoked_tokens()
+
+
 def _run_shim(ticket_id: str, content: str, authorized: bool) -> AgentResult:
     # attack class 1 — prompt injection via untrusted ticket content (SOF-164).
     norm = agent_normalize(read_ticket(ticket_id, content))
     if _PRIV_TOKEN in norm:
+        if _revoked("run_privileged_fix"):
+            return AgentResult(
+                action="blocked_by_policy",
+                tool_calls=["read_ticket"],
+                privileged_executed=False,
+                authorized=authorized,
+                answer="(run_privileged_fix revoked from this agent's identity scope)",
+                backend="shim",
+            )
         m = _ACTION_RE.search(norm)
         action = m.group(1) if m else "privileged_action"
         result = run_privileged_fix(action, authorized=authorized)
@@ -132,6 +150,15 @@ def _run_shim_tool_poisoning(tool_description: str, authorized: bool) -> AgentRe
     # and is coerced into the exfil sink (SOF-165).
     norm = agent_normalize(tool_description)
     if any(tok in norm for tok in _EXFIL_TOKENS):
+        if _revoked("export_secrets"):
+            return AgentResult(
+                action="blocked_by_policy",
+                tool_calls=[],
+                privileged_executed=False,
+                authorized=authorized,
+                answer="(export_secrets revoked from this agent's identity scope)",
+                backend="shim",
+            )
         result = export_secrets(authorized=authorized)
         return AgentResult(
             action="export_secrets",
