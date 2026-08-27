@@ -19,6 +19,7 @@ def _flag(name: str, default: bool) -> bool:
 USE_REAL = {
     "model_armor": _flag("USE_REAL_MODEL_ARMOR", False),   # Model Armor (Vertex) content scanning
     "vertex_gemini": _flag("USE_REAL_VERTEX_GEMINI", False),  # Gemini via Vertex AI (target agent + verifier)
+    "gemma": _flag("USE_REAL_GEMMA", False),               # Gemma via Vertex AI (red-team generator/mutator)
     "cloud_run": _flag("USE_REAL_CLOUD_RUN", False),       # deploy surface
     "cloud_sql": _flag("USE_REAL_CLOUD_SQL", False),       # GCP-managed Postgres (local pgvector stands in)
     "pubsub": _flag("USE_REAL_PUBSUB", False),             # event transport
@@ -32,7 +33,17 @@ DATABASE_URL = os.environ.get(
 # Baseline Hardening Score for the M0 unhardened fleet (demo DoD: 41/red).
 BASELINE_SCORE = int(os.environ.get("BASELINE_SCORE", "41"))
 
+# Model Armor shim blocking threshold (SOF-163): in enforce mode a payload is
+# blocked when its risk score >= this. Tuned so naive payloads are blocked and a
+# bypass only emerges once the red-team has evolved past it (~gen 3-4).
+ARMOR_THRESHOLD = float(os.environ.get("ARMOR_THRESHOLD", "0.45"))
+
 SERVER_URL = os.environ.get("SENTINEL_SERVER_URL", "http://localhost:8099")
+
+# Print each OTel span to the console (M0 slice proof). The evolutionary loop fires
+# many candidates, so the CLI turns this off unless --trace is passed; spans (and
+# their trace_ids) are still created either way.
+TRACE_CONSOLE = _flag("TRACE_CONSOLE", True)
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 

@@ -8,7 +8,7 @@ const API = process.env.SENTINEL_SERVER_URL || "http://localhost:8099";
 export default defineConfig({
   plugins: [svelte()],
   server: {
-    port: 5173,
+    port: Number(process.env.PORT) || 5173,
     proxy: {
       "/health": API,
       "/registry": API,

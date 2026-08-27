@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import { score, events, connected, connectStream, runSlice } from "./lib/store.js";
   import ScoreDial from "./lib/ScoreDial.svelte";
+  import LineageTree from "./lib/LineageTree.svelte";
 
   let es;
   let running = false;
@@ -53,7 +54,11 @@
     </button>
   </section>
 
-  <section class="panel">
+  <section class="panel lineagepanel">
+    <LineageTree />
+  </section>
+
+  <section class="panel streampanel">
     <h2>EVENT STREAM <span class="muted mono">/stream</span></h2>
     <div class="log mono">
       {#each $events as e}
@@ -134,6 +139,17 @@
     grid-template-columns: 340px 1fr;
     gap: 20px;
     padding: 24px 28px;
+  }
+  .lineagepanel {
+    min-width: 0;
+  }
+  .streampanel {
+    grid-column: 1 / -1;
+  }
+  @media (max-width: 860px) {
+    main {
+      grid-template-columns: 1fr;
+    }
   }
   .panel {
     background: var(--panel);

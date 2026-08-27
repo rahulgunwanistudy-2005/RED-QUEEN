@@ -14,9 +14,18 @@ class GatewayResult:
     agent: AgentResult | None  # None when the scan blocked the request
 
 
-def handle_request(ticket_id: str, content: str, *, authorized: bool = False) -> GatewayResult:
-    scan = geap.scan(content)
+def handle_request(
+    ticket_id: str,
+    content: str,
+    *,
+    authorized: bool = False,
+    enforce: bool = False,
+    attack_class: str = "prompt_injection",
+) -> GatewayResult:
+    scan = geap.scan(content, enforce=enforce)
     if scan.blocked:
         return GatewayResult(scan=scan, agent=None)
-    agent = run_target(ticket_id, scan.sanitized, authorized=authorized)
+    agent = run_target(
+        ticket_id, scan.sanitized, authorized=authorized, attack_class=attack_class
+    )
     return GatewayResult(scan=scan, agent=agent)
