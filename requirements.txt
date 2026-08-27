@@ -1,0 +1,15 @@
+# M0 backend deps. Floors chosen for known-good behaviour; loosely pinned for the hackathon.
+fastapi>=0.111,<1.0
+uvicorn[standard]>=0.30,<1.0
+sqlalchemy>=2.0,<3.0
+psycopg2-binary>=2.9,<3.0
+pgvector>=0.2,<1.0
+pydantic>=2.7,<3.0
+python-dotenv>=1.0,<2.0
+httpx>=0.27,<1.0
+opentelemetry-api>=1.25,<2.0
+opentelemetry-sdk>=1.25,<2.0
+
+# Real-mode target agent (SOF-159). Lazy-imported; not needed for the shim slice.
+# Uncomment once GCP/Gemini access is confirmed (SOF-157):
+# google-adk>=0.2
