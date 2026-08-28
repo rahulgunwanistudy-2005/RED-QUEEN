@@ -1,8 +1,41 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Node / frontend
 node_modules/
 frontend/dist/
-.DS_Store
+frontend/.svelte-kit/
+
+# Build artifacts
 *.log
+
+# macOS
+.DS_Store
+
+# Environment — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Local agent / session config
+.claude/
+
+# Local session handoffs and internal strategy docs (M3 reads these locally)
+SESSION_*.md
+CONSTITUTION.md
+
+# Internal task tracking
+tasks/
+
+# Coverage / test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
