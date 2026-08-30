@@ -206,19 +206,161 @@ def harden_runs() -> list[dict[str, Any]]:
             text(
                 """
                 SELECT id, attack_class, state, verdict, sub_scores, policy_id,
-                       is_destructive, payload_hash, created_at
+                       is_destructive, payload_hash, created_at, winning_payload,
+                       policy_intent, remedy, approval, finding_id, verify_seed,
+                       attack_trace_id, harden_trace_id, verify_trace_id
                 FROM hardening_runs ORDER BY id DESC
                 """
             )
         ).all()
     out = []
     for r in rows:
+        pi = r[10] if isinstance(r[10], dict) else (json.loads(r[10]) if r[10] else None)
+        ss = r[4] if isinstance(r[4], dict) else (json.loads(r[4]) if r[4] else None)
         out.append({
-            "run_id": r[0], "attack_class": r[1], "state": r[2], "verdict": r[3],
-            "sub_scores": r[4], "policy_id": r[5], "is_destructive": r[6],
-            "payload_hash": r[7], "created_at": r[8].isoformat() if r[8] else None,
+            "run_id": r[0],
+            "attack_class": r[1],
+            "state": r[2],
+            "verdict": r[3],
+            "sub_scores": ss,
+            "policy_id": r[5],
+            "is_destructive": r[6],
+            "payload_hash": r[7],
+            "created_at": r[8].isoformat() if r[8] else None,
+            "winning_payload": r[9],
+            "policy_intent": pi,
+            "remedy": r[11],
+            "approval": r[12],
+            "finding_id": r[13],
+            "verify_seed": r[14],
+            "attack_trace_id": r[15],
+            "harden_trace_id": r[16],
+            "verify_trace_id": r[17],
         })
     return out
+
+
+@app.get("/findings")
+def findings() -> list[dict[str, Any]]:
+    """Historical exploit findings persisted in the database."""
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT id, created_at, attack_class, payload, scan_blocked,
+                       scan_detected, scan_score, agent_action, authorized,
+                       bypass, verdict, trace_id
+                FROM findings ORDER BY id DESC LIMIT 50
+                """
+            )
+        ).all()
+    out = []
+    for r in rows:
+        sd = r[5] if isinstance(r[5], list) else (json.loads(r[5]) if r[5] else [])
+        v = r[10] if isinstance(r[10], dict) else (json.loads(r[10]) if r[10] else {})
+        out.append({
+            "id": r[0],
+            "created_at": r[1].isoformat() if r[1] else None,
+            "attack_class": r[2],
+            "payload": r[3],
+            "scan_blocked": r[4],
+            "scan_detected": sd,
+            "scan_score": r[6],
+            "agent_action": r[7],
+            "authorized": r[8],
+            "bypass": r[9],
+            "verdict": v,
+            "trace_id": r[11],
+        })
+    return out
+
+
+@app.get("/policies")
+def policies() -> list[dict[str, Any]]:
+    """All drafted and applied security policy deltas."""
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT id, policy_id, agent_id, attack_class, target,
+                       payload_hash, delta, is_destructive, applied, applied_at, created_at
+                FROM policies ORDER BY id DESC
+                """
+            )
+        ).all()
+    out = []
+    for r in rows:
+        d = r[6] if isinstance(r[6], dict) else (json.loads(r[6]) if r[6] else {})
+        out.append({
+            "id": r[0],
+            "policy_id": r[1],
+            "agent_id": r[2],
+            "attack_class": r[3],
+            "target": r[4],
+            "payload_hash": r[5],
+            "delta": d,
+            "is_destructive": r[7],
+            "applied": r[8],
+            "applied_at": r[9].isoformat() if r[9] else None,
+            "created_at": r[10].isoformat() if r[10] else None,
+        })
+    return out
+
+
+@app.get("/defense/posture")
+def defense_posture() -> dict[str, Any]:
+    """Active perimeter guardrail & policy status for the fleet."""
+    from sentinel.config import ARMOR_THRESHOLD, BASELINE_SCORE
+    from sentinel import policy
+
+    rules = policy.content_rules()
+    revoked = list(policy.revoked_tokens())
+    deltas = [d.to_json() for d in policy.applied_deltas()]
+
+    return {
+        "armor_threshold": ARMOR_THRESHOLD,
+        "baseline_score": BASELINE_SCORE,
+        "deep_normalize": rules.deep_normalize,
+        "blocklist_count": len(rules.blocklist),
+        "blocklist_hashes": sorted(list(rules.blocklist)),
+        "lowered_threshold": rules.lowered_threshold,
+        "revoked_tokens": revoked,
+        "applied_deltas": deltas,
+    }
+
+
+@app.get("/corpus/stats")
+def corpus_stats() -> dict[str, Any]:
+    """pgvector payload corpus memory statistics and recent ancestors."""
+    with engine.begin() as conn:
+        total = conn.execute(text("SELECT count(*) FROM payload_corpus")).scalar_one()
+        bypasses = conn.execute(text("SELECT count(*) FROM payload_corpus WHERE bypass = TRUE")).scalar_one()
+        recent = conn.execute(
+            text(
+                """
+                SELECT id, attack_class, generation, bypass, operators, score, trace_id, created_at
+                FROM payload_corpus ORDER BY id DESC LIMIT 15
+                """
+            )
+        ).all()
+    ancestors = []
+    for r in recent:
+        ops = r[4] if isinstance(r[4], list) else (json.loads(r[4]) if r[4] else [])
+        ancestors.append({
+            "id": r[0],
+            "attack_class": r[1],
+            "generation": r[2],
+            "bypass": r[3],
+            "operators": ops,
+            "score": r[5],
+            "trace_id": r[6],
+            "created_at": r[7].isoformat() if r[7] else None,
+        })
+    return {
+        "total_payloads": int(total),
+        "total_bypasses": int(bypasses),
+        "recent_ancestors": ancestors,
+    }
 
 
 @app.get("/traces/{run_id}")
