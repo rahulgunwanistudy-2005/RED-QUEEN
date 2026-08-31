@@ -33,7 +33,7 @@
   const CAMERA_POSES = [
     { pos: new THREE.Vector3(0, 1.2, 9.5), look: new THREE.Vector3(0, 0, 0) },        // 0. The attack evolves.
     { pos: new THREE.Vector3(1.8, 1.6, 8.8), look: new THREE.Vector3(0, 0.2, 0) },      // 1. So does the defense.
-    { pos: new THREE.Vector3(-2.4, 1.0, 7.8), look: new THREE.Vector3(-0.6, 0, 0) },    // 2. Sentinel doesn't wait.
+    { pos: new THREE.Vector3(-2.4, 1.0, 7.8), look: new THREE.Vector3(-0.6, 0, 0) },    // 2. Red//Queen doesn't wait.
     { pos: new THREE.Vector3(3.0, 3.2, 7.4), look: new THREE.Vector3(0.6, 0.3, 0) },    // 3. Manufactures next attack.
     { pos: new THREE.Vector3(-1.6, 0.6, 5.6), look: new THREE.Vector3(-0.4, 0.1, 0) },    // 4. Until one gets through.
     { pos: new THREE.Vector3(-0.6, 0.1, 4.2), look: new THREE.Vector3(-0.05, 0, 0) },   // 5. Bypass climax (Zoom in)
@@ -610,7 +610,7 @@
     <!-- Graceful WebGL Fallback -->
     <div class="webgl-fallback">
       <div class="fallback-icon">🛡</div>
-      <div class="fallback-title serif-display">SENTINEL SECURITY ORGANISM</div>
+      <div class="fallback-title serif-display">RED//QUEEN SECURITY ORGANISM</div>
       <div class="fallback-desc mono">
         Model Armor Perimeter · Agent Gateway · Isolated Subprocess Verifier
       </div>

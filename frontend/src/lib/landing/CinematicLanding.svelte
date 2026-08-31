@@ -36,7 +36,7 @@
     {
       time: "00:08 - 00:13",
       stage: "03. INCIDENT",
-      headline: "SENTINEL DOESN'T WAIT FOR AN INCIDENT.",
+      headline: "RED//QUEEN DOESN'T WAIT FOR AN INCIDENT.",
       sub: "Red team vectors begin continuous automated probing across prompt injection and tool poisoning attack classes.",
       hud: "PROBING: PROMPT_INJECTION & TOOL_POISONING",
       tech: "sentinel.redteam.loop.evolve",
@@ -77,7 +77,7 @@
       time: "00:25 - 00:28",
       stage: "07. PHILOSOPHY",
       headline: "THE ATTACKER DOES NOT CERTIFY THE FIX.",
-      sub: "Self-evaluating red teams create dangerous illusions of safety. Sentinel enforces an independent verifier operating in an isolated security domain.",
+      sub: "Self-evaluating red teams create dangerous illusions of safety. Red//Queen enforces an independent verifier operating in an isolated security domain.",
       hud: "INDEPENDENT DOMAIN · ROLE ISOLATION",
       tech: "sentinel.verifier.run",
       tab: "remediation",
@@ -200,7 +200,7 @@
     <div class="brand-block">
       <span class="brand-shield">🛡</span>
       <div>
-        <div class="brand-title serif-display">SENTINEL EVOLUTION</div>
+        <div class="brand-title serif-display">RED//QUEEN</div>
         <div class="brand-sub mono">AUTONOMOUS RED-TEAM RANGE · ENTERPRISE AGENT SECURITY</div>
       </div>
     </div>
@@ -234,7 +234,7 @@
       </h1>
 
       <p class="hook-lead editorial-serif">
-        Sentinel continuously attacks your AI agent fleet, discovers adaptive prompt and tool bypasses, independently verifies failures under isolated database roles, and synthesizes hardened boundaries until the exploit is proven closed.
+        Red//Queen continuously attacks your AI agent fleet, discovers adaptive prompt and tool bypasses, independently verifies failures under isolated database roles, and synthesizes hardened boundaries until the exploit is proven closed.
       </p>
 
       <div class="hook-cta-row">
@@ -389,7 +389,7 @@
           <div class="card-num mono">02</div>
           <h4 class="card-title serif-display">The Self-Judging Attacker</h4>
           <p>
-            Standard benchmarks let red-team agents evaluate their own success. Sentinel enforces an independent verifier operating under a firewalled database role (<code>sentinel_verifier</code>) with zero access to the attacker corpus.
+            Standard benchmarks let red-team agents evaluate their own success. Red//Queen enforces an independent verifier operating under a firewalled database role (<code>sentinel_verifier</code>) with zero access to the attacker corpus.
           </p>
         </div>
 
@@ -397,7 +397,7 @@
           <div class="card-num mono">03</div>
           <h4 class="card-title serif-display">The False Closure Trap</h4>
           <p>
-            Brittle patches create a false sense of security. Sentinel's verifier explicitly tests for <code>FALSE_CLOSED</code> states, refusing to issue a passing certificate unless the fix withstands newly evolved variants.
+            Brittle patches create a false sense of security. Red//Queen's verifier explicitly tests for <code>FALSE_CLOSED</code> states, refusing to issue a passing certificate unless the fix withstands newly evolved variants.
           </p>
         </div>
       </div>
@@ -414,7 +414,7 @@
 
       <div class="proof-card">
         <p class="proof-statement editorial-serif">
-          Sentinel does not claim protection based on heuristics or self-judging agents. Every patch is independently re-tested against a newly evolved adversary before an official verification certificate is signed.
+          Red//Queen does not claim protection based on heuristics or self-judging agents. Every patch is independently re-tested against a newly evolved adversary before an official verification certificate is signed.
         </p>
 
         <div class="proof-metrics-grid mono">
@@ -451,7 +451,7 @@
       </p>
       <div class="cta-buttons">
         <button class="btn btn-primary btn-hero" on:click={() => enterRange("fleet")}>
-          LAUNCH SENTINEL CONTROL PLANE →
+          LAUNCH RED//QUEEN CONTROL PLANE →
         </button>
       </div>
     </div>

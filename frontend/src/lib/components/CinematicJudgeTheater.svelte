@@ -49,7 +49,7 @@
     {
       time: "00:08 - 00:12",
       stage: "03 · PROACTIVE PROBING",
-      headline: "SENTINEL DOESN'T WAIT FOR AN INCIDENT.",
+      headline: "RED//QUEEN DOESN'T WAIT FOR AN INCIDENT.",
       tagline: "Continuous Proactive Red Teaming",
       what: "The automated red-team range launches continuous adversarial probing across prompt injection and tool poisoning vectors.",
       how: "Systematically tests triage-agent capabilities: read_ticket, run_privileged_fix, and export_secrets.",
@@ -119,7 +119,7 @@
       stage: "07 · THE PHILOSOPHY",
       headline: "THE ATTACKER DOES NOT CERTIFY THE FIX.",
       tagline: "Strict Domain Separation",
-      what: "Self-judging red teams produce false safety. Sentinel enforces absolute domain separation for verification.",
+      what: "Self-judging red teams produce false safety. Red//Queen enforces absolute domain separation for verification.",
       how: "A firewalled verifier subprocess operates with zero access to the attacker's mutation corpus.",
       telemetry: {
         attackClass: "verification_domain",
@@ -328,7 +328,7 @@
     <div class="theater-topbar">
       <div class="tt-left mono">
         <span class="tt-logo">🛡</span>
-        <span class="tt-title">SENTINEL EVOLUTION // 45s AUTONOMOUS CINEMATIC WALKTHROUGH</span>
+        <span class="tt-title">RED//QUEEN // 45s AUTONOMOUS CINEMATIC WALKTHROUGH</span>
       </div>
 
       <!-- Linear Micro Progress Timeline -->

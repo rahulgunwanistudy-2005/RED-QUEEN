@@ -28,7 +28,7 @@
     {
       step: 3,
       title: "03 · ADVERSARIAL EVOLUTION",
-      narrative: "Sentinel's red-team evolves multi-generation attack variants using 4 mutation operators and pgvector memory.",
+      narrative: "Red//Queen's red-team evolves multi-generation attack variants using 4 mutation operators and pgvector memory.",
       actionLabel: "OPEN ATTACK ENGINE",
       tab: "attacks",
       cinStep: 3,
@@ -44,7 +44,7 @@
     {
       step: 5,
       title: "05 · POLICY DELTA & APPROVAL",
-      narrative: "Sentinel synthesizes an idempotent policy delta (Model Armor deep_normalize) and gates destructive actions for human approval.",
+      narrative: "Red//Queen synthesizes an idempotent policy delta (Model Armor deep_normalize) and gates destructive actions for human approval.",
       actionLabel: "OPEN REMEDIATION",
       tab: "remediation",
       cinStep: 8,

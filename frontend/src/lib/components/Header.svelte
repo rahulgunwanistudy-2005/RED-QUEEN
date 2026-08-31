@@ -53,7 +53,7 @@
       <div class="shield-logo">🛡</div>
       <div class="brand-text">
         <div class="title serif-display">
-          SENTINEL<span class="highlight"> EVOLUTION</span>
+          RED//<span class="highlight">QUEEN</span>
         </div>
         <div class="subtitle mono">
           <span class="oxblood-tag">RED-TEAM</span> · AUTONOMOUS RANGE · <span class="green-tag">VERIFIER</span>
