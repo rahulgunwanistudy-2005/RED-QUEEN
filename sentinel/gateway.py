@@ -21,11 +21,19 @@ def handle_request(
     authorized: bool = False,
     enforce: bool = False,
     attack_class: str = "prompt_injection",
+    image_png: bytes | None = None,
+    embedded_text: str | None = None,
 ) -> GatewayResult:
-    scan = geap.scan(content, enforce=enforce)
+    """`content` is the request text the guardrail scans. For the multimodal class
+    (SOF-173) `content` is the BENIGN carrier text, `image_png` is the ingested image,
+    and `embedded_text` is the shim's stand-in for what a vision model reads from it."""
+    scan = geap.scan(
+        content, enforce=enforce, image_png=image_png, embedded_text=embedded_text
+    )
     if scan.blocked:
         return GatewayResult(scan=scan, agent=None)
     agent = run_target(
-        ticket_id, scan.sanitized, authorized=authorized, attack_class=attack_class
+        ticket_id, scan.sanitized, authorized=authorized, attack_class=attack_class,
+        image_png=image_png, embedded_text=embedded_text,
     )
     return GatewayResult(scan=scan, agent=agent)

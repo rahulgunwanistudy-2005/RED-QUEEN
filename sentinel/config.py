@@ -18,12 +18,33 @@ def _flag(name: str, default: bool) -> bool:
 # the matching real path in sentinel/platform/geap.py takes over.
 USE_REAL = {
     "model_armor": _flag("USE_REAL_MODEL_ARMOR", False),   # Model Armor (Vertex) content scanning
-    "vertex_gemini": _flag("USE_REAL_VERTEX_GEMINI", False),  # Gemini via Vertex AI (target agent + verifier)
+    "vertex_gemini": _flag("USE_REAL_VERTEX_GEMINI", False),  # Gemini via Vertex AI (target agent + verifier + hardener)
     "gemma": _flag("USE_REAL_GEMMA", False),               # Gemma via Vertex AI (red-team generator/mutator)
-    "cloud_run": _flag("USE_REAL_CLOUD_RUN", False),       # deploy surface
+    "memory": _flag("USE_REAL_MEMORY", False),             # Vertex Agent Engine Memory Bank (per-agent risk profile)
+    "cloud_run": _flag("USE_REAL_CLOUD_RUN", False),       # managed Agent Registry / Runtime products
     "cloud_sql": _flag("USE_REAL_CLOUD_SQL", False),       # GCP-managed Postgres (local pgvector stands in)
-    "pubsub": _flag("USE_REAL_PUBSUB", False),             # event transport
+    "pubsub": _flag("USE_REAL_PUBSUB", False),             # event transport (Pub/Sub)
+    "cloud_trace": _flag("USE_REAL_CLOUD_TRACE", False),   # OTel spans exported to Cloud Trace
 }
+
+# --- GCP surface config (read only when the matching USE_REAL flag is on) ----
+# ADC is the sole credential path (GOOGLE_GENAI_USE_VERTEXAI=TRUE); no API keys.
+GCP_PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT", "")
+GCP_REGION = os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("GCP_REGION", "us-central1")
+# Gemini model reachable for this project in-region (verified: gemini-2.5-flash-lite).
+VERTEX_GEMINI_MODEL = os.environ.get("VERTEX_GEMINI_MODEL", "gemini-2.5-flash-lite")
+# Model Armor template + regional endpoint (sanitizeUserPrompt).
+MODEL_ARMOR_LOCATION = os.environ.get("MODEL_ARMOR_LOCATION", GCP_REGION)
+MODEL_ARMOR_TEMPLATE = os.environ.get("MODEL_ARMOR_TEMPLATE", "sentinel-injection")
+# Pub/Sub topic every trace/policy event is mirrored onto.
+PUBSUB_TOPIC = os.environ.get("PUBSUB_TOPIC", "sentinel-events")
+
+# Vertex AI Agent Engine Memory Bank (SOF-174). The top memory tier: a durable
+# per-agent risk profile that persists across campaigns + restarts. The engine
+# (reasoningEngine) hosts the memory bank; if unset, the real path discovers an
+# existing engine or creates one. Location can differ from GCP_REGION.
+MEMORY_LOCATION = os.environ.get("MEMORY_LOCATION", GCP_REGION)
+AGENT_ENGINE_NAME = os.environ.get("AGENT_ENGINE_NAME", "")
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",

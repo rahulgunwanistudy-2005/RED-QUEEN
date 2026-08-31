@@ -1,0 +1,26 @@
+# Cloud Build upload filter. Keep source (sentinel, migrations, frontend/src +
+# package manifests, requirements, Dockerfile); drop everything heavy or local.
+.git/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+frontend/node_modules/
+frontend/dist/
+
+.env
+.env.*
+.claude/
+tasks/
+scripts/
+tests/
+
+# Internal docs / handoffs (not needed in the image)
+SESSION_*.md
+CONSTITUTION.md
+README.md
+FRONTEND_IMPLEMENTATION_AUDIT.md
+REPOSITORY_ARCHITECTURE_AND_FRONTEND_PLAN.md
+docker-compose.yml
+.DS_Store

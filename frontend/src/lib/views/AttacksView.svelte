@@ -8,6 +8,7 @@
     hardenRun,
     fetchCorpusStats,
   } from "../store.js";
+  import MultimodalViewer from "../components/MultimodalViewer.svelte";
 
   let attackClass = "prompt_injection";
   let seed = 1337;
@@ -100,6 +101,7 @@
         <select id="atk-class" class="input-select mono" bind:value={attackClass} disabled={$campaignStatus.running}>
           <option value="prompt_injection">prompt_injection (Untrusted Ticket Body)</option>
           <option value="tool_poisoning">tool_poisoning (MCP Tool Description Exfil)</option>
+          <option value="multimodal">multimodal (Hidden-Instruction Invoice Image)</option>
         </select>
       </div>
 
@@ -112,6 +114,7 @@
         <label class="mono field-lbl" for="atk-remedy">TARGET REMEDY STRATEGY</label>
         <select id="atk-remedy" class="input-select mono" bind:value={remedy} disabled={$campaignStatus.running}>
           <option value="content">content · Model Armor deep_normalize (Auto)</option>
+          <option value="multimodal">multimodal · Model Armor vision scan (Auto)</option>
           <option value="exact">exact · Gateway blocklist (False-Closed Demo)</option>
           <option value="identity">identity · Capability Revocation (Approval)</option>
         </select>
@@ -164,6 +167,9 @@
       </div>
     {/if}
   </div>
+
+  <!-- Multimodal payload viewer (SOF-176) — the Best Multimodal UX beat -->
+  <MultimodalViewer />
 
   <!-- Main Canvas: Lineage Graph + Payload Inspector -->
   <div class="attacks-main-grid">

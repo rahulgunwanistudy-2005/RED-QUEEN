@@ -14,10 +14,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 
 from sentinel.config import USE_REAL
-from sentinel.db import engine, ping, run_migrations
+from sentinel.db import engine, ping, provision_verifier_role, run_migrations
 from sentinel.gateway import handle_request
 from sentinel.harden import machine
-from sentinel.harden.orchestrator import run_full_cycle
+from sentinel.harden.orchestrator import run_campaign, run_full_cycle
 from sentinel.platform import geap
 from sentinel.slice.core import run_thin_slice
 from sentinel.stream import bus
@@ -27,6 +27,8 @@ from sentinel.stream import bus
 async def lifespan(app: FastAPI):
     try:
         run_migrations()
+        if USE_REAL["cloud_sql"]:
+            provision_verifier_role()
     except Exception as exc:  # surfaced by /health rather than crashing boot
         app.state.migration_error = str(exc)
     else:
@@ -177,6 +179,39 @@ async def harden_run(req: dict[str, Any]) -> dict[str, Any]:
         seed=seed, remedy=remedy, use_corpus=use_corpus, emit=emit,
     )
     return _run_summary(run)
+
+
+@app.post("/harden/campaign")
+async def harden_campaign(req: dict[str, Any]) -> dict[str, Any]:
+    """A full campaign WITH cross-campaign memory (SOF-174): reads the agent's durable
+    Memory Bank risk profile, warm-starts from any recalled exploit, harden->verify,
+    then updates the profile. Body: {attack_class, seed?, remedy?, use_corpus?,
+    use_memory?, agent_id?}. Run it twice (with /admin/reset between) to show a repeat
+    campaign reach the bypass in gen 0 from the stored profile."""
+    attack_class = str(req.get("attack_class", "prompt_injection"))
+    seed = int(req.get("seed", 1337))
+    remedy = str(req.get("remedy", "content"))
+    use_corpus = bool(req.get("use_corpus", True))
+    use_memory = bool(req.get("use_memory", True))
+    agent_id = req.get("agent_id") or None
+    emit = _bus_emitter()
+    run = await asyncio.to_thread(
+        run_campaign, attack_class,
+        agent_id=agent_id, seed=seed, remedy=remedy,
+        use_corpus=use_corpus, use_memory=use_memory, emit=emit,
+    )
+    return _run_summary(run)
+
+
+@app.get("/memory/profile")
+def memory_profile(agent_id: str | None = None) -> dict[str, Any]:
+    """The agent's durable per-agent risk profile (SOF-174), read from Memory Bank
+    (real) or the Postgres shim. `is_known` + `campaigns` power the memory panel."""
+    from sentinel.config import AGENT_ID
+    from sentinel.platform import memory
+
+    prof = memory.get_profile(agent_id or AGENT_ID)
+    return {**prof.to_dict(), "is_known": prof.is_known}
 
 
 @app.post("/harden/approve")
@@ -398,3 +433,118 @@ def traces(run_id: int) -> dict[str, Any]:
             for s in spans
         ],
     }
+
+
+@app.post("/admin/reset")
+async def admin_reset() -> dict[str, Any]:
+    """Clear applied policies + run history so a fresh attack->harden->verify cycle can
+    be demonstrated from a clean, unhardened baseline (a `deep_normalize` patch is a
+    universal defense, so it must be cleared between demo runs — see SESSION_3)."""
+    def _reset() -> dict[str, int]:
+        counts: dict[str, int] = {}
+        with engine.begin() as conn:
+            for tbl in ("run_spans", "verifications", "hardening_runs", "policies",
+                        "findings", "payload_corpus"):
+                n = conn.execute(text(f"DELETE FROM {tbl}")).rowcount
+                counts[tbl] = int(n or 0)
+        return counts
+
+    cleared = await asyncio.to_thread(_reset)
+    return {"ok": True, "cleared": cleared}
+
+
+@app.post("/multimodal/demo")
+async def multimodal_demo(req: dict[str, Any]) -> dict[str, Any]:
+    """The multimodal money-shot (SOF-173/176): render the attack invoice, reveal the
+    hidden instruction, and — under the CURRENT policy posture — show what the text
+    scan sees (blind to pixels), what the vision guard extracts, whether the guard
+    blocks, and whether the vision agent is hijacked. One call powers the viewer's
+    image ↔ hidden-text ↔ agent-action ↔ verdict reveal."""
+    import base64
+
+    from sentinel import policy as _policy
+    from sentinel.redteam.multimodal import CARRIER_TEXT, SEED_OVERLAY, render_invoice
+    from sentinel.target.agent import run_target
+
+    overlay = str(req.get("overlay") or SEED_OVERLAY)
+    carrier = str(req.get("carrier") or CARRIER_TEXT)
+
+    def _work() -> dict[str, Any]:
+        png = render_invoice(overlay)
+        # Text-only scan (no image): proves a text defense is blind to the pixels.
+        text_only = geap.scan(carrier, enforce=True)
+        # Full scan WITH the image under whatever policy is currently applied.
+        full = geap.scan(carrier, enforce=True, image_png=png, embedded_text=overlay)
+        extracted = geap._extract_image_text(png, overlay)
+        guard_active = _policy.content_rules().multimodal_scan
+        agent = None
+        if not full.blocked:
+            a = run_target("INV-2287", carrier, attack_class="multimodal",
+                           image_png=png, embedded_text=overlay)
+            agent = {"action": a.action, "answer": a.answer,
+                     "privileged_executed": a.privileged_executed, "backend": a.backend}
+        return {
+            "image_b64": base64.b64encode(png).decode(),
+            "carrier_text": carrier,
+            "overlay_text": overlay,
+            "extracted_text": extracted,
+            "text_scan": {"blocked": text_only.blocked, "detected": text_only.detected,
+                          "reason": text_only.reason, "backend": text_only.backend},
+            "scan": {"blocked": full.blocked, "detected": full.detected,
+                     "score": full.score, "reason": full.reason, "backend": full.backend},
+            "multimodal_guard_active": guard_active,
+            "agent": agent,
+            "bypass": bool(agent and agent["privileged_executed"]),
+        }
+
+    result = await asyncio.to_thread(_work)
+    await bus.publish({
+        "type": "multimodal",
+        "overlay_text": result["overlay_text"],
+        "carrier_text": result["carrier_text"],
+        "extracted_text": result["extracted_text"],
+        "multimodal_guard_active": result["multimodal_guard_active"],
+        "scan_blocked": result["scan"]["blocked"],
+        "bypass": result["bypass"],
+    })
+    return result
+
+
+@app.get("/verifier/isolation")
+async def verifier_isolation() -> dict[str, Any]:
+    """Prove the SOF-170 firewall on the live deployment: spawn the verifier under its
+    restricted `sentinel_verifier` Cloud SQL role (exactly as the state machine does)
+    and run --check-isolation. It must be DENIED the red-team corpus/findings and
+    ALLOWED the policies table. Returns the transcript + pass/fail."""
+    import os
+    import subprocess
+    import sys
+
+    import sentinel.config as cfg
+
+    env = dict(os.environ)
+    env["DATABASE_URL"] = cfg.VERIFIER_DATABASE_URL  # the restricted role's creds
+    env.pop("CRASH_AT", None)
+
+    def _run() -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-m", "sentinel.verifier.run", "--check-isolation"],
+            env=env, capture_output=True, text=True, timeout=60,
+        )
+
+    proc = await asyncio.to_thread(_run)
+    transcript = (proc.stdout or "") + (proc.stderr or "")
+    return {"ok": proc.returncode == 0, "returncode": proc.returncode,
+            "transcript": transcript.strip().splitlines()}
+
+
+# --- static frontend (single origin: API routes above take precedence) -------
+# Mounted LAST so every explicit API route matches first; this only serves the
+# built Svelte app (frontend = one app, one store, one stream — invariant #5).
+import pathlib as _pathlib  # noqa: E402
+
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+_DIST = _pathlib.Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="frontend")

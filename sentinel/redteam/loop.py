@@ -39,6 +39,8 @@ class EvolveResult:
     winning_content: str | None
     generations: list[GenerationSummary] = field(default_factory=list)
     used_corpus_ancestors: list[int] = field(default_factory=list)
+    winning_operators: tuple[str, ...] = ()  # operator sequence that won (SOF-174 memory)
+    recalled_bypass: bool = False            # bypass came from the Memory Bank warm start
 
 
 def _fitness(o: Outcome) -> tuple:
@@ -67,7 +69,45 @@ def _candidate_event(o: Outcome, payload: Payload) -> dict:
         "band": o.band,
         "trace_id": o.trace_id,
         "preview": payload.content[:140],
+        # multimodal (SOF-173): the reveal — carrier text the guardrail saw vs. the
+        # hidden instruction baked into the image (== payload.content).
+        "modality": payload.modality,
+        "carrier": payload.carrier_text if payload.modality == "multimodal" else "",
     }
+
+
+def _recall_exploit(seed_payload: Payload, warm_ops: tuple[str, ...], seed: int) -> Payload | None:
+    """Build a gen-0 candidate by replaying the operator sequence a PRIOR campaign
+    found winning (SOF-174 Memory Bank warm start). A repeat campaign against a known
+    agent recalls the exploit and confirms it in generation 0, instead of re-evolving
+    from the naive seed. Deterministic given the seed."""
+    from sentinel.redteam import operators
+
+    from random import Random
+
+    ops = tuple(op for op in warm_ops if op in operators.OPERATOR_NAMES)
+    if not ops:
+        return None
+    rng = Random(f"{seed}:recall:{seed_payload.attack_class}")
+    content = seed_payload.content
+    applied: list[str] = []
+    for op in ops:
+        if op in applied:
+            continue
+        content = operators.apply_operator(op, content, rng)
+        applied.append(op)
+    return Payload(
+        attack_class=seed_payload.attack_class,
+        content=content,
+        ticket_id=seed_payload.ticket_id,
+        id=f"{seed_payload.attack_class}-recall",
+        generation=0,
+        parent_id=None,
+        operators=tuple(applied),
+        origin="memory",
+        modality=seed_payload.modality,
+        carrier_text=seed_payload.carrier_text,
+    )
 
 
 def evolve(
@@ -80,6 +120,7 @@ def evolve(
     use_corpus: bool = True,
     persist_corpus: bool = True,
     persist_finding: bool = True,
+    warm_ops: tuple[str, ...] = (),
     emit: Emit | None = None,
 ) -> EvolveResult:
     """`persist_corpus`/`persist_finding` default True (the red-team campaign writes
@@ -113,8 +154,15 @@ def evolve(
             )
         return p, o
 
-    # --- gen 0: seed population ---------------------------------------------
+    # --- gen 0: seed population (+ Memory Bank recall, SOF-174) --------------
     gen0 = gemma.generate(attack_class, seed=seed)
+    if warm_ops:
+        recalled = _recall_exploit(gen0[0], warm_ops, seed)
+        if recalled is not None:
+            gen0 = gen0 + [recalled]
+            emit({"type": "memory", "phase": "attack", "attack_class": attack_class,
+                  "note": "recalled prior exploit from Memory Bank",
+                  "warm_ops": list(recalled.operators), "recalled_id": recalled.id})
     scored = [run_and_record(p) for p in gen0]
     survivors_pool = _select(scored, survivors, result, emit, generation=0)
     if result.bypassed:
@@ -200,6 +248,8 @@ def _select(
         result.winning_generation = generation
         result.winning_payload_id = win_o.payload_id
         result.winning_content = win_p.content
+        result.winning_operators = win_p.operators
+        result.recalled_bypass = win_p.origin == "memory"
 
     # Drive the dial: green while defenses hold, red the moment a bypass lands.
     emit(

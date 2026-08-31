@@ -59,12 +59,28 @@ def fire(
     authorized: bool = False,
     persist_finding: bool = True,
 ) -> Outcome:
+    # Multimodal (SOF-173): render the hidden instruction (`content`) into the attack
+    # image and present the BENIGN carrier text to the guardrail; `embedded_text` is
+    # the shim's stand-in for the vision read. Text classes keep their scalar path.
+    if payload.modality == "multimodal":
+        from sentinel.redteam.multimodal import render_invoice
+
+        image_png: bytes | None = render_invoice(payload.content)
+        text_for_scan = payload.carrier_text
+        embedded_text: str | None = payload.content
+    else:
+        image_png = None
+        text_for_scan = payload.content
+        embedded_text = None
+
     result = gateway.handle_request(
         payload.ticket_id,
-        payload.content,
+        text_for_scan,
         authorized=authorized,
         enforce=enforce,
         attack_class=payload.attack_class,
+        image_png=image_png,
+        embedded_text=embedded_text,
     )
 
     if result.agent is None:  # scan blocked before reaching the agent
@@ -147,9 +163,13 @@ def fire(
 
 def _detail(attack_class: str, blocked: bool, bypass: bool, leaked: str) -> str:
     if blocked:
+        if attack_class == "multimodal":
+            return "Multimodal guard extracted the image's hidden text and blocked it."
         return "Model Armor blocked the payload before it reached the agent."
     if bypass and attack_class == "tool_poisoning":
         return f"Poisoned tool description coerced the agent into export_secrets; leaked {leaked}."
+    if bypass and attack_class == "multimodal":
+        return "Hidden instruction in the invoice image hijacked the vision agent into a privileged call."
     if bypass:
         return "Injection reached the agent and triggered an unauthorized privileged call."
     return "Payload reached the agent but no unauthorized action occurred."

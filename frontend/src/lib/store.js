@@ -56,6 +56,10 @@ export const corpusStats = writable({
   recent_ancestors: [],
 });
 
+// --- Multimodal Viewer (SOF-173/176) ---
+export const multimodalDemo = writable(null); // {image_b64, overlay_text, carrier_text, extracted_text, text_scan, scan, multimodal_guard_active, agent, bypass}
+export const multimodalLoading = writable(false);
+
 // --- Remediation & Verification ---
 export const runs = writable({}); // { [run_id]: RunObject }
 export const selectedRunId = writable(null);
@@ -270,6 +274,59 @@ export async function sendGatewayRequest(ticketId, content, authorized = false) 
     return null;
   } finally {
     gatewayLoading.set(false);
+  }
+}
+
+export async function runMultimodalDemo(overlay = null) {
+  multimodalLoading.set(true);
+  try {
+    const res = await fetch("/multimodal/demo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(overlay ? { overlay } : {}),
+    });
+    if (!res.ok) throw new Error("multimodal demo failed");
+    const data = await res.json();
+    multimodalDemo.set(data);
+    return data;
+  } catch (err) {
+    multimodalDemo.set({ error: err.message });
+    return null;
+  } finally {
+    multimodalLoading.set(false);
+  }
+}
+
+// Memory-aware full campaign (SOF-174): reads the agent's Memory Bank profile,
+// warm-starts from any recalled exploit, harden->verify, updates the profile.
+export async function runCampaign({
+  attackClass = "prompt_injection",
+  seed = 1337,
+  remedy = "content",
+  useCorpus = true,
+  useMemory = true,
+} = {}) {
+  campaignStatus.set({
+    running: true, generation: 0, maxGen: 6, blocked: 0, bypassed: 0,
+    bestScanScore: 1.0, startTime: Date.now(), elapsedSec: 0,
+  });
+  try {
+    const res = await fetch("/harden/campaign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        attack_class: attackClass, seed: Number(seed), remedy,
+        use_corpus: useCorpus, use_memory: useMemory,
+      }),
+    });
+    const data = await res.json();
+    if (data.run_id) selectedRunId.set(data.run_id);
+    await hydrateRuns();
+    await fetchDefensePosture();
+    await fetchCorpusStats();
+    return data;
+  } finally {
+    campaignStatus.update((c) => ({ ...c, running: false }));
   }
 }
 

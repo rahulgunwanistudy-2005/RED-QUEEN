@@ -15,6 +15,10 @@ drives the behaviour, so adding a target is a new op, not new plumbing.
 Ops (the whole taxonomy):
   - deep_normalize   (model_armor)  strong: scan through the agent's own decoder so
                                     leet/obfuscation evasions are recovered. Non-destructive.
+  - multimodal_scan  (model_armor)  strong: a DIFFERENT mechanism — extract text from an
+                                    ingested image, then scan it, so a hidden-instruction
+                                    image is caught (a text defense is blind to pixels).
+                                    Non-destructive. (SOF-173.)
   - blocklist_exact  (gateway)      weak: block only the exact raw-string hash; an
                                     evolved variant slips past. Non-destructive.
   - revoke_identity  (identity)     strong: strip a capability token from the agent so
@@ -69,6 +73,7 @@ class ContentRules:
     deep_normalize: bool = False
     blocklist: set[str] = field(default_factory=set)   # raw_hash values to block
     lowered_threshold: float | None = None
+    multimodal_scan: bool = False   # SOF-173: extract text from images, then scan it
 
 
 def _engine():
@@ -120,6 +125,8 @@ def content_rules(agent_id: str | None = None) -> ContentRules:
         op = d.rule.get("op")
         if op == "deep_normalize":
             rules.deep_normalize = True
+        elif op == "multimodal_scan":
+            rules.multimodal_scan = True
         elif op == "blocklist_exact":
             for h in d.rule.get("hashes", []):
                 rules.blocklist.add(h)

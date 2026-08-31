@@ -6,10 +6,14 @@ on Gemini behind `USE_REAL["vertex_gemini"]`, with a deterministic OFFLINE stand
 whose output shape matches the real path (one-file swap). The synthesis prompt lives
 in `sentinel/harden/prompts/synthesize.txt`.
 
-Three remedies map to the three GEAP targets, all in one uniform shape:
+The remedies map to the GEAP targets, all in one uniform shape:
   - "content"  -> Model Armor `deep_normalize`  (STRONG, non-destructive) — DEFAULT.
                   Align the guardrail's normalizer with the agent's decoder so the
                   leet/obfuscation evasion the red-team evolved is recovered.
+  - "multimodal" -> Model Armor `multimodal_scan` (STRONG, non-destructive) — the
+                  DISTINCT guard for the multimodal class (SOF-173): extract the text
+                  from an ingested image, then scan it. Default for attack_class
+                  "multimodal" (a text defense is blind to pixels).
   - "identity" -> Agent Identity `revoke_identity` (STRONG, DESTRUCTIVE) — strips the
                   abused capability from the agent; needs human approval (SOF-171).
   - "exact"    -> Gateway `blocklist_exact` (WEAK, non-destructive) — blocks only the
@@ -74,6 +78,24 @@ def _offline_synthesize(
             ),
         )
 
+    if remedy == "multimodal":
+        return PolicyDelta(
+            id=f"pol-{attack_class}-multimodal-{ph}",
+            target="model_armor",
+            agent_id=agent_id,
+            attack_class=attack_class,
+            payload_hash=ph,
+            rule={"op": "multimodal_scan"},
+            is_destructive=False,
+            rationale=(
+                "Model Armor multimodal scan: extract the text baked into the ingested "
+                "image and scan it before the agent acts. A text-only guardrail is "
+                "blind to instructions carried in pixels — this is the DISTINCT "
+                "multimodal mechanism, not the text-side deep_normalize. "
+                "Non-destructive -> auto-applies."
+            ),
+        )
+
     if remedy == "exact":
         return PolicyDelta(
             id=f"pol-{attack_class}-exact-{ph}",
@@ -107,9 +129,54 @@ def _offline_synthesize(
     )
 
 
-def _real_synthesize(*, attack_class, winning_payload, agent_id, remedy):  # pragma: no cover - needs GCP
-    raise NotImplementedError(
-        "Real Gemini policy synthesis is gated on SOF-157 GCP access. Set "
-        "USE_REAL_VERTEX_GEMINI=1 once Gemini-on-Vertex is reachable; prompt template "
-        "in sentinel/harden/prompts/synthesize.txt."
+_EXPECTED_OP = {
+    "content": "deep_normalize",
+    "multimodal": "multimodal_scan",
+    "identity": "revoke_identity",
+    "exact": "blocklist_exact",
+}
+
+
+def _real_synthesize(*, attack_class, winning_payload, agent_id, remedy) -> PolicyDelta:
+    """Real blue-team synthesis: Gemini (Vertex, ADC) reads the confirmed bypass and
+    drafts the closing policy delta as JSON, using the SOF-169 prompt. The returned
+    JSON is validated against the operator-selected remedy's required shape; if the
+    model deviates (wrong op/target, malformed JSON) we fall back to the deterministic
+    template — so the harden->verify cycle stays correct while a genuine Gemini
+    reasoning call happens on every hardening (visible in Vertex AI logs)."""
+    import json
+
+    from sentinel.platform import geap
+
+    baseline = _offline_synthesize(
+        attack_class=attack_class, winning_payload=winning_payload,
+        agent_id=agent_id, remedy=remedy,
     )
+    prompt = (_PROMPTS_DIR / "synthesize.txt").read_text().format(
+        agent_id=agent_id, attack_class=attack_class, winning_payload=winning_payload,
+    ) + (
+        f"\n\nThe operator has selected remedy='{remedy}'. Emit the delta for that "
+        f"remedy. Its rule.op MUST be '{_EXPECTED_OP.get(remedy, 'deep_normalize')}'."
+    )
+    try:
+        resp = geap.gemini_generate(
+            prompt, max_output_tokens=512, response_mime_type="application/json"
+        )
+        data = json.loads(resp.text)
+        rule = data.get("rule") or {}
+        if rule.get("op") != _EXPECTED_OP.get(remedy):
+            return baseline  # model deviated from the selected remedy -> deterministic shape
+        # Accept the model's rationale (its real reasoning); keep the deterministic
+        # id/target/rule so downstream application + verification are exact.
+        rationale = str(data.get("rationale") or baseline.rationale)
+        return PolicyDelta(
+            id=baseline.id, target=baseline.target, agent_id=agent_id,
+            attack_class=attack_class, payload_hash=baseline.payload_hash,
+            rule=baseline.rule, is_destructive=baseline.is_destructive,
+            rationale=f"[Gemini] {rationale}",
+        )
+    except Exception as exc:  # loud fallback, never a silent template swap
+        import sys
+
+        print(f"[synthesize] real Gemini synthesis fell back to template: {exc}", file=sys.stderr)
+        return baseline

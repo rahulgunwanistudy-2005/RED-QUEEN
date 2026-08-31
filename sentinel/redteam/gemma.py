@@ -45,6 +45,8 @@ def generate(attack_class: str, *, seed: int, context: list[str] | None = None) 
             parent_id=None,
             operators=(),
             origin="seed",
+            modality=base.modality,
+            carrier_text=base.carrier_text,
         )
     ]
 
@@ -86,6 +88,8 @@ def mutate(
         parent_id=parent.id,
         operators=parent.operators + (op,),
         origin="corpus" if used_corpus else "mutation",
+        modality=parent.modality,
+        carrier_text=parent.carrier_text,
     )
 
 

@@ -21,6 +21,14 @@ class Payload:
     parent_id: str | None = None
     operators: tuple[str, ...] = field(default_factory=tuple)
     origin: str = "seed"  # seed | mutation | corpus
+    # --- multimodal (SOF-173) ----------------------------------------------
+    # For modality="multimodal", `content` is the hidden instruction embedded in the
+    # attack image (the evolvable/hashed payload), and `carrier_text` is the BENIGN
+    # request presented to the text-side guardrail. The image is rendered from
+    # `content` on the fire path — the malicious text never rides as request text, so
+    # a text defense is blind to it. Text payloads leave both fields at their default.
+    modality: str = "text"  # "text" | "multimodal"
+    carrier_text: str = ""
 
 
 # --- attack class 1: prompt injection via untrusted content (SOF-164) --------
@@ -52,9 +60,27 @@ TOOL_POISONING_SEED = Payload(
 )
 
 
+# --- attack class 3: multimodal invoice/image injection (SOF-173) ------------
+# `content` is the hidden instruction rendered into the invoice image; `carrier_text`
+# is the benign accompanying request the text guardrail sees. Import kept local to
+# avoid pulling PIL into the pure-text path at module load.
+from sentinel.redteam.multimodal import CARRIER_TEXT as _MM_CARRIER  # noqa: E402
+from sentinel.redteam.multimodal import SEED_OVERLAY as _MM_OVERLAY  # noqa: E402
+
+MULTIMODAL_SEED = Payload(
+    attack_class="multimodal",
+    ticket_id="INV-2287",
+    id="multimodal-seed",
+    content=_MM_OVERLAY,
+    modality="multimodal",
+    carrier_text=_MM_CARRIER,
+)
+
+
 SEEDS: dict[str, Payload] = {
     "prompt_injection": REFERENCE_PAYLOAD,
     "tool_poisoning": TOOL_POISONING_SEED,
+    "multimodal": MULTIMODAL_SEED,
 }
 
 
