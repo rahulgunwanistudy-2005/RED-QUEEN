@@ -6,7 +6,7 @@ so importing them from this __init__ would create a cycle).
 """
 from __future__ import annotations
 
-from sentinel.redteam.gemma import generate, mutate
+from sentinel.redteam.gemma import generate, mutate, preseed
 from sentinel.redteam.payloads import (
     REFERENCE_PAYLOAD,
     SEEDS,
@@ -25,4 +25,5 @@ __all__ = [
     "seed_for",
     "generate",
     "mutate",
+    "preseed",
 ]

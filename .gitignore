@@ -28,9 +28,17 @@ frontend/.svelte-kit/
 # Local agent / session config
 .claude/
 
-# Local session handoffs and internal strategy docs (M3 reads these locally)
+# Local session handoffs and internal strategy/working docs (kept local, not public)
 SESSION_*.md
 CONSTITUTION.md
+DEVPOST.md
+DEMO_SHOTLIST.md
+FRONTEND_IMPLEMENTATION_AUDIT.md
+REPOSITORY_ARCHITECTURE_AND_FRONTEND_PLAN.md
+
+# Redundant diagram artifacts (keep curated png/ + mermaid/ sources only)
+docs/diagrams/raw/
+docs/diagrams/*.zip
 
 # Internal task tracking
 tasks/
@@ -39,3 +47,6 @@ tasks/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# SESSION_8: Gemma-generated payload cache (generated, not source)
+sentinel/redteam/gemma_cache/

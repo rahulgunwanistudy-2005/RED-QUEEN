@@ -1,0 +1,49 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#747b77","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart LR
+  REQUEST["NEW CAMPAIGN<br/>agent + attack class"]
+
+  subgraph HOT["TIER 1 · HOT SESSION STATE"]
+    H1["Current population"]
+    H2["Generation scores"]
+    H3["Survivors + lineage"]
+    H1 --> H2 --> H3
+  end
+
+  subgraph WARM["TIER 2 · PGVECTOR CORPUS"]
+    W1["payload_corpus"]
+    W2["768-d embeddings"]
+    W3["top-k bypass ancestors"]
+    W1 --> W2 --> W3
+  end
+
+  subgraph DURABLE["TIER 3 · VERTEX MEMORY BANK"]
+    D1["Per-agent risk profile"]
+    D2["Known weaknesses"]
+    D3["Winning operators"]
+    D4["Applied closing policies"]
+    D1 --> D2
+    D1 --> D3
+    D1 --> D4
+  end
+
+  REQUEST -->|"start"| H1
+  W3 -->|"few-shot ancestors"| H1
+  D2 -->|"known class → warm start"| H1
+  D3 -->|"winning chain"| H1
+  H3 -->|"every candidate"| W1
+  H3 -->|"confirmed bypass + closure"| D1
+
+  COLD["COLD RUN<br/>evolve to generation 3+"]
+  RECALL["REPEAT RUN<br/>recalled exploit at generation 0"]
+  REQUEST --> COLD
+  D1 --> RECALL
+
+  classDef hot fill:#251211,stroke:#e34b43,color:#f7efed,stroke-width:2px;
+  classDef warm fill:#121820,stroke:#78a9df,color:#eef5ff,stroke-width:2px;
+  classDef durable fill:#102018,stroke:#85d8a5,color:#eff8f2,stroke-width:2px;
+  classDef outcome fill:#211b10,stroke:#e6b86a,color:#fff5df;
+  class REQUEST,H1,H2,H3 hot;
+  class W1,W2,W3 warm;
+  class D1,D2,D3,D4 durable;
+  class COLD,RECALL outcome;
+

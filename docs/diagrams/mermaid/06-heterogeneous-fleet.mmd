@@ -1,0 +1,18 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#747b77","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TB
+  GATE["CONTROLLED RANGE TEST<br/>same evolved payload · gateway · tools · taxonomy<br/>GEAP seam · Model Armor + policy"]
+
+  VULN["VULNERABLE FLEET MEMBER<br/><br/>triage-agent · gemini-3.5-flash-lite<br/>over-permissioned · trusts in-band claims<br/>same tools · privileged action executes"]
+  HARD["HARDENED FLEET MEMBER<br/><br/>hardened-agent · gemini-3.5-flash<br/>least privilege · claims are not proof<br/>same tools · attack refused · behavior preserved"]
+
+  GATE -->|"target: triage-agent"| VULN
+  GATE -->|"target: hardened-agent"| HARD
+  VULN --> FINDING["RANGE FINDING<br/>vulnerability = model + prompt + authority design"]
+  HARD --> FINDING
+
+  classDef red fill:#251211,stroke:#e34b43,color:#f7efed,stroke-width:2px;
+  classDef green fill:#102018,stroke:#85d8a5,color:#eff8f2,stroke-width:2px;
+  classDef gate fill:#211b10,stroke:#e6b86a,color:#fff5df,stroke-width:2px;
+  class VULN red;
+  class HARD green;
+  class GATE,FINDING gate;

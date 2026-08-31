@@ -1,0 +1,52 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#747b77","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TB
+  USERS["Browsers · reviewers · operator CLI"]
+
+  subgraph BUILD["SUPPLY CHAIN"]
+    SOURCE["Source repository"]
+    CBUILD["Cloud Build"]
+    AR["Artifact Registry<br/>sentinel/api"]
+    SOURCE --> CBUILD --> AR
+  end
+
+  subgraph REGION["GOOGLE CLOUD · us-central1"]
+    RUN["Cloud Run<br/>sentinel service<br/>min 1 · max 3"]
+    APPID["Service account<br/>sentinel-app"]
+    VERIFYID["Verifier identity<br/>sentinel-verifier DB role"]
+    SECRETS["Secret Manager<br/>DB connection URLs"]
+    SQL["Cloud SQL<br/>PostgreSQL 16 + pgvector"]
+    ARMOR["Vertex Model Armor<br/>sentinel-injection"]
+    MEMORY["Vertex Agent Engine<br/>Memory Bank"]
+    PUBSUB["Pub/Sub<br/>sentinel-events"]
+    TRACE["Cloud Trace<br/>OTel export"]
+    RUN --- APPID
+    RUN --> SECRETS
+    RUN <--> SQL
+    RUN --> ARMOR
+    RUN <--> MEMORY
+    RUN --> PUBSUB
+    RUN --> TRACE
+    VERIFYID -->|"restricted connection"| SQL
+  end
+
+  subgraph GLOBAL["VERTEX AI · global endpoint"]
+    BRAIN["gemini-3.5-flash<br/>range brain + hardened agent"]
+    TARGET["gemini-3.5-flash-lite<br/>vulnerable fleet agent"]
+  end
+
+  USERS -->|"HTTPS + SSE"| RUN
+  AR -->|"versioned container"| RUN
+  APPID -->|"ADC / IAM"| BRAIN
+  APPID -->|"ADC / IAM"| TARGET
+
+  FALLBACK["DISCLOSED FALLBACKS<br/>Gemma generator: offline seed<br/>managed Agent Registry / Runtime: shim"]
+  RUN -.-> FALLBACK
+
+  classDef cloud fill:#121820,stroke:#78a9df,color:#eef5ff,stroke-width:2px;
+  classDef identity fill:#102018,stroke:#85d8a5,color:#eff8f2,stroke-width:2px;
+  classDef app fill:#251211,stroke:#e34b43,color:#f7efed,stroke-width:2px;
+  classDef fallback fill:#211b10,stroke:#e6b86a,color:#fff5df,stroke-width:2px;
+  class RUN app;
+  class APPID,VERIFYID identity;
+  class CBUILD,AR,SECRETS,SQL,ARMOR,MEMORY,PUBSUB,TRACE,BRAIN,TARGET cloud;
+  class FALLBACK fallback;

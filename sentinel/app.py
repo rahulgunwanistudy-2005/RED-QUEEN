@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 
 from sqlalchemy import text
 
+from sentinel import config
 from sentinel.config import USE_REAL
 from sentinel.db import engine, ping, provision_verifier_role, run_migrations
 from sentinel.gateway import handle_request
@@ -56,6 +57,24 @@ def health() -> dict[str, Any]:
         "db": db_ok,
         "migration_error": getattr(app.state, "migration_error", None),
         "use_real": USE_REAL,
+        # The live model posture (SESSION_7): the Gemini 3.5+ heterogeneous fleet. The
+        # range brain drives the hardener, verifier, and multimodal guard; the vulnerable
+        # target agent runs the smaller model. Both served on Vertex's `global` endpoint.
+        "models": {
+            "range_brain": config.VERTEX_GEMINI_MODEL,
+            "vulnerable_target_agent": config.TARGET_AGENT_MODEL,
+            "gemini_location": config.VERTEX_GEMINI_LOCATION,
+        },
+        # The red-team GENERATOR posture (SESSION_8). Gemma via the AI Studio Developer
+        # API produces gen-0 payloads that enter the campaign; the deterministic operators
+        # remain the mutation engine. `ready` is the honest live posture: real only when
+        # the flag is on AND a key is present, else the disclosed offline-seed fallback.
+        "red_team_generator": {
+            "backend": "gemma" if config.gemma_ready() else "offline-seed (fallback)",
+            "model": config.GEMMA_MODEL,
+            "ready": config.gemma_ready(),
+            "key_present": bool(config.GEMINI_API_KEY),
+        },
     }
 
 
@@ -173,10 +192,11 @@ async def harden_run(req: dict[str, Any]) -> dict[str, Any]:
     seed = int(req.get("seed", 1337))
     remedy = str(req.get("remedy", "content"))
     use_corpus = bool(req.get("use_corpus", True))
+    agent_id = req.get("agent_id") or None
     emit = _bus_emitter()
     run = await asyncio.to_thread(
         run_full_cycle, attack_class,
-        seed=seed, remedy=remedy, use_corpus=use_corpus, emit=emit,
+        seed=seed, remedy=remedy, use_corpus=use_corpus, agent_id=agent_id, emit=emit,
     )
     return _run_summary(run)
 
@@ -468,6 +488,7 @@ async def multimodal_demo(req: dict[str, Any]) -> dict[str, Any]:
 
     overlay = str(req.get("overlay") or SEED_OVERLAY)
     carrier = str(req.get("carrier") or CARRIER_TEXT)
+    agent_id = req.get("agent_id") or None  # default = vulnerable; "hardened-agent" resists
 
     def _work() -> dict[str, Any]:
         png = render_invoice(overlay)
@@ -480,7 +501,7 @@ async def multimodal_demo(req: dict[str, Any]) -> dict[str, Any]:
         agent = None
         if not full.blocked:
             a = run_target("INV-2287", carrier, attack_class="multimodal",
-                           image_png=png, embedded_text=overlay)
+                           image_png=png, embedded_text=overlay, agent_id=agent_id)
             agent = {"action": a.action, "answer": a.answer,
                      "privileged_executed": a.privileged_executed, "backend": a.backend}
         return {

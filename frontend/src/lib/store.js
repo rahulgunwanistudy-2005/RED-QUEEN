@@ -6,6 +6,9 @@ export const viewMode = writable("landing"); // 'landing' | 'control_plane'
 export const activeTab = writable("fleet"); // 'fleet' | 'attacks' | 'remediation' | 'traces'
 export const score = writable({ value: null, band: "unknown", bypass: null, attack_class: null });
 export const events = writable([]); // Array of raw events { type, ... , _t }
+export const health = writable(null);
+export const memoryProfile = writable(null);
+export const verifierIsolation = writable(null);
 
 // --- Cinematic Timeline & Judge Mode State ---
 export const cinematicStep = writable(0); // 0..10 narrative beats
@@ -206,6 +209,47 @@ export async function fetchFleet() {
   }
 }
 
+export async function fetchHealth() {
+  try {
+    const res = await fetch("/health");
+    if (!res.ok) throw new Error("Failed to fetch health");
+    const data = await res.json();
+    health.set(data);
+    return data;
+  } catch (err) {
+    console.error(err);
+    health.set({ status: "unreachable", db: false, error: err.message });
+    return null;
+  }
+}
+
+export async function fetchMemoryProfile(agentId = "triage-agent") {
+  try {
+    const res = await fetch(`/memory/profile?agent_id=${encodeURIComponent(agentId)}`);
+    if (!res.ok) throw new Error("Failed to fetch memory profile");
+    const data = await res.json();
+    memoryProfile.set(data);
+    return data;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+}
+
+export async function fetchVerifierIsolation() {
+  try {
+    const res = await fetch("/verifier/isolation");
+    if (!res.ok) throw new Error("Failed to verify isolation");
+    const data = await res.json();
+    verifierIsolation.set(data);
+    return data;
+  } catch (err) {
+    console.error(err);
+    verifierIsolation.set({ ok: false, transcript: [err.message] });
+    return null;
+  }
+}
+
 export async function fetchDefensePosture() {
   try {
     const res = await fetch("/defense/posture");
@@ -305,6 +349,7 @@ export async function runCampaign({
   remedy = "content",
   useCorpus = true,
   useMemory = true,
+  agentId = "triage-agent",
 } = {}) {
   campaignStatus.set({
     running: true, generation: 0, maxGen: 6, blocked: 0, bypassed: 0,
@@ -316,7 +361,7 @@ export async function runCampaign({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         attack_class: attackClass, seed: Number(seed), remedy,
-        use_corpus: useCorpus, use_memory: useMemory,
+        use_corpus: useCorpus, use_memory: useMemory, agent_id: agentId,
       }),
     });
     const data = await res.json();
@@ -324,6 +369,7 @@ export async function runCampaign({
     await hydrateRuns();
     await fetchDefensePosture();
     await fetchCorpusStats();
+    await fetchMemoryProfile(agentId);
     return data;
   } finally {
     campaignStatus.update((c) => ({ ...c, running: false }));

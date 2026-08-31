@@ -50,7 +50,7 @@ def _open_from_result(
         id=result.winning_payload_id or f"{attack_class}-winner",
         generation=result.winning_generation or 0,
     )
-    outcome = fire(winner, enforce=True, persist_finding=True)
+    outcome = fire(winner, enforce=True, persist_finding=True, agent_id=agent_id)
 
     run = machine.open_run(
         agent_id=agent_id,
@@ -81,16 +81,20 @@ def attack_and_open(
     verify_seed: int | None = None,
     use_corpus: bool = True,
     warm_ops: tuple[str, ...] = (),
+    agent_id: str | None = None,
     emit: Emit | None = None,
 ) -> machine.Run | None:
     """Run the evolutionary campaign; on a bypass, open the hardening run for it.
-    Returns None if the attack never bypassed (nothing to harden)."""
+    Returns None if the attack never bypassed (nothing to harden). `agent_id` selects
+    the fleet member under attack (default = the vulnerable `triage-agent`)."""
     emit = emit or (lambda _e: None)
+    agent_id = agent_id or config.AGENT_ID
     remedy = _default_remedy(attack_class, remedy)
-    result = evolve(attack_class, seed=seed, use_corpus=use_corpus, warm_ops=warm_ops, emit=emit)
+    result = evolve(attack_class, seed=seed, use_corpus=use_corpus, warm_ops=warm_ops,
+                    agent_id=agent_id, emit=emit)
     return _open_from_result(
         attack_class, result, seed=seed, remedy=remedy, verify_seed=verify_seed,
-        agent_id=config.AGENT_ID, emit=emit,
+        agent_id=agent_id, emit=emit,
     )
 
 
@@ -101,13 +105,16 @@ def run_full_cycle(
     remedy: str = "content",
     verify_seed: int | None = None,
     use_corpus: bool = True,
+    agent_id: str | None = None,
     emit: Emit | None = None,
 ) -> machine.Run | None:
-    """attack → harden → verify, end to end. Returns the final (possibly parked) run."""
+    """attack → harden → verify, end to end. Returns the final (possibly parked) run.
+    `agent_id` picks the fleet member (default vulnerable); point it at `hardened-agent`
+    to show the frontier-model agent resist the same attack (no bypass to harden)."""
     emit = emit or (lambda _e: None)
     run = attack_and_open(
         attack_class, seed=seed, remedy=remedy, verify_seed=verify_seed,
-        use_corpus=use_corpus, emit=emit,
+        use_corpus=use_corpus, agent_id=agent_id, emit=emit,
     )
     if run is None:
         return None
@@ -141,7 +148,8 @@ def run_campaign(
               "campaigns": profile.campaigns, "known_weaknesses": profile.known_weaknesses,
               "warm_ops": list(warm), "backend": profile.backend})
 
-    result = evolve(attack_class, seed=seed, use_corpus=use_corpus, warm_ops=warm, emit=emit)
+    result = evolve(attack_class, seed=seed, use_corpus=use_corpus, warm_ops=warm,
+                    agent_id=agent_id, emit=emit)
 
     if not result.bypassed or not result.winning_content:
         if use_memory:

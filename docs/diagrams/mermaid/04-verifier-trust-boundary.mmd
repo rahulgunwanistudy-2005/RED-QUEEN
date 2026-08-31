@@ -1,0 +1,50 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#747b77","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart LR
+  subgraph MAIN["MAIN TRUST ZONE · sentinel-app identity"]
+    RED["Red team<br/>attack corpus + winner"]
+    HARD["Hardener<br/>policy synthesis"]
+    API["Cloud Run control plane"]
+    MAINROLE["Main Cloud SQL role"]
+    RED --> HARD --> API --> MAINROLE
+  end
+
+  subgraph DATA["CLOUD SQL DATA BOUNDARY"]
+    FINDINGS[("findings<br/>known outcomes")]
+    CORPUS[("payload_corpus<br/>winning ancestors")]
+    RUNS[("hardening_runs<br/>winning payload + state")]
+    POLICIES[("policies<br/>patch under test")]
+    VERDICTS[("verifications<br/>independent verdict")]
+    MEMORY[("agent_memory<br/>risk profile")]
+  end
+
+  subgraph ISO["ISOLATED TRUST ZONE · sentinel-verifier identity"]
+    PROC["Verifier subprocess<br/>fresh process · fresh attack"]
+    VROLE["sentinel_verifier<br/>restricted DB role"]
+    PROOF["3 orthogonal checks<br/>armor · behavior · secret"]
+    PROC --> VROLE
+    PROC --> PROOF
+  end
+
+  MAINROLE --> FINDINGS
+  MAINROLE --> CORPUS
+  MAINROLE --> RUNS
+  MAINROLE --> POLICIES
+  MAINROLE --> MEMORY
+
+  VROLE -->|"SELECT allowed"| POLICIES
+  VROLE -->|"INSERT allowed"| VERDICTS
+  VROLE -. "DENY SELECT" .-> FINDINGS
+  VROLE -. "DENY SELECT" .-> CORPUS
+  VROLE -. "DENY SELECT" .-> RUNS
+  VROLE -. "DENY SELECT" .-> MEMORY
+  VERDICTS -->|"machine reads result"| API
+
+  classDef red fill:#251211,stroke:#e34b43,color:#f7efed,stroke-width:2px;
+  classDef green fill:#102018,stroke:#85d8a5,color:#eff8f2,stroke-width:2px;
+  classDef data fill:#121820,stroke:#78a9df,color:#eef5ff;
+  classDef safe fill:#172018,stroke:#85d8a5,color:#eff8f2;
+  class RED,HARD,API,MAINROLE red;
+  class PROC,VROLE,PROOF green;
+  class FINDINGS,CORPUS,RUNS,MEMORY data;
+  class POLICIES,VERDICTS safe;
+

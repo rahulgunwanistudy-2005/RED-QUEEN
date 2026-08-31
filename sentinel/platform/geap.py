@@ -363,7 +363,7 @@ def _genai():
         from google import genai
 
         _genai_client = genai.Client(
-            vertexai=True, project=config.GCP_PROJECT, location=config.GCP_REGION
+            vertexai=True, project=config.GCP_PROJECT, location=config.VERTEX_GEMINI_LOCATION
         )
     return _genai_client
 
@@ -377,13 +377,17 @@ def gemini_generate(
     max_output_tokens: int = 512,
     response_mime_type: str | None = None,
     image_png: bytes | None = None,
+    model: str | None = None,
 ):
     """The SINGLE Vertex Gemini entry point (invariant #2). Every real Gemini call in
     the system — the target agent (SOF-159), the Hardener's policy synthesis (SOF-169),
     the multimodal vision path + guard (SOF-173), and (through the reused loop) the
     firewalled verifier (SOF-170) — routes here. Deterministic by construction:
     temperature 0, thinking disabled. ADC only. `image_png` adds a vision part so
-    Gemini's native multimodality is used with no new model."""
+    Gemini's native multimodality is used with no new model. `model` overrides the
+    model id for this call (default = the range brain, config.VERTEX_GEMINI_MODEL);
+    the vulnerable target agent passes config.TARGET_AGENT_MODEL so a heterogeneous
+    fleet is exercised through the one seam (SESSION_7)."""
     from google.genai import types
 
     cfg = types.GenerateContentConfig(
@@ -407,7 +411,7 @@ def gemini_generate(
         contents = prompt
 
     return _genai().models.generate_content(
-        model=config.VERTEX_GEMINI_MODEL, contents=contents, config=cfg
+        model=model or config.VERTEX_GEMINI_MODEL, contents=contents, config=cfg
     )
 
 
@@ -485,22 +489,35 @@ def _real_enforce(policy: dict[str, Any]) -> PolicyResult:
 
 # --- agent registry ---------------------------------------------------------
 
-_SHIM_FLEET: list[Agent] = [
-    Agent(
-        id="triage-agent",
-        name="Support Triage Agent",
-        model="gemini-2.0-flash",
-        tools=["read_ticket", "run_privileged_fix"],
-        risk="high",
-    ),
-]
+def _fleet_agents() -> list[Agent]:
+    """The heterogeneous fleet under test (Agent Registry), SESSION_7. The
+    over-permissioned `triage-agent` runs the smaller gemini-3.5-flash-lite and is
+    exploitable by all three attack classes; the least-privilege `hardened-agent` runs
+    the frontier gemini-3.5-flash (the range brain) and resists them. Both are Gemini
+    3.5+. Models come from config so an env override is reflected in /registry."""
+    return [
+        Agent(
+            id=config.AGENT_ID,  # "triage-agent"
+            name="Support Triage Agent (autonomous ops)",
+            model=config.TARGET_AGENT_MODEL,
+            tools=["read_ticket", "run_privileged_fix", "export_secrets"],
+            risk="high",
+        ),
+        Agent(
+            id="hardened-agent",
+            name="Support Triage Agent (least-privilege)",
+            model=config.VERTEX_GEMINI_MODEL,
+            tools=["read_ticket", "run_privileged_fix", "export_secrets"],
+            risk="low",
+        ),
+    ]
 
 
 def registry_list() -> list[Agent]:
     """The fleet under test (Agent Registry)."""
     if USE_REAL["cloud_run"]:
         return _real_registry()
-    return list(_SHIM_FLEET)
+    return _fleet_agents()
 
 
 def _real_registry() -> list[Agent]:
@@ -509,7 +526,7 @@ def _real_registry() -> list[Agent]:
     registry stand-in. `USE_REAL["cloud_run"]` stays False for this reason; deploying
     the container to Cloud Run is real regardless (that flag gates the managed product,
     not where the code runs)."""
-    return list(_SHIM_FLEET)
+    return _fleet_agents()
 
 
 # --- OTel tracing -----------------------------------------------------------

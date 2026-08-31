@@ -1,0 +1,31 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#747b77","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TB
+  ORCH(("AUTONOMOUS<br/>CONTROL LOOP"))
+  RED["01 · RED PLANE · EVOLVE<br/><br/>recall ancestors → seed → mutate<br/>fire through gateway → select survivors"]
+  BLUE["02 · BLUE PLANE · HARDEN<br/><br/>open idempotent run → synthesize delta<br/>persist intent → apply exactly once"]
+  GREEN["03 · GREEN PLANE · VERIFY<br/><br/>fresh independent mutations → re-probe<br/>score armor · behavior · containment"]
+
+  BYPASS["CONFIRMED BYPASS<br/>durable handoff → step 02"]
+  POLICY["POLICY UNDER TEST<br/>isolated test → step 03"]
+  VERDICT{"VERDICT"}
+  CLOSED["CLOSED<br/>3 / 3 guarantees pass<br/>update durable risk profile"]
+  LOOP["↺ MUTATION LOOPBACK<br/>FALSE_CLOSED / STILL_OPEN<br/>return fresh pressure to step 01"]
+
+  ORCH -->|"1 · attack"| RED
+  ORCH -->|"2 · harden"| BLUE
+  ORCH -->|"3 · verify"| GREEN
+  RED --> BYPASS
+  BLUE --> POLICY
+  GREEN --> VERDICT
+  VERDICT --> CLOSED
+  VERDICT --> LOOP
+
+  classDef red fill:#251211,stroke:#e34b43,color:#f7efed,stroke-width:2px;
+  classDef blue fill:#211b10,stroke:#e6b86a,color:#fff5df,stroke-width:2px;
+  classDef green fill:#102018,stroke:#85d8a5,color:#eff8f2,stroke-width:2px;
+  classDef data fill:#121820,stroke:#78a9df,color:#eef5ff;
+  class RED,BYPASS red;
+  class BLUE,POLICY blue;
+  class GREEN,VERDICT,CLOSED green;
+  class ORCH data;
+  class LOOP red;

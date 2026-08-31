@@ -1,0 +1,48 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#8c9490","secondaryColor":"#1f1716","tertiaryColor":"#102018","actorBkg":"#151818","actorBorder":"#505755","actorTextColor":"#f0f0eb","signalColor":"#aab1ad","signalTextColor":"#d9ddda","labelBoxBkgColor":"#251211","labelBoxBorderColor":"#e34b43","labelTextColor":"#f0f0eb","loopTextColor":"#e6b86a","noteBkgColor":"#102018","noteBorderColor":"#85d8a5","noteTextColor":"#e5f3e9","fontFamily":"Inter, Arial, sans-serif"}}}%%
+sequenceDiagram
+  autonumber
+  actor User as Control plane
+  participant API as FastAPI / Cloud Run
+  participant Red as Red team
+  participant GEAP as geap.py seam
+  participant Armor as Model Armor
+  participant Target as Gemini target agent
+  participant Machine as Durable state machine
+  participant DB as Cloud SQL + pgvector
+  participant Verify as Firewalled verifier
+
+  User->>API: POST /harden/campaign
+  API->>Red: start attack class + deterministic seed
+  Red->>DB: recall pgvector ancestors + Memory Bank profile
+  loop generations until bypass or budget exhausted
+    Red->>GEAP: scan(candidate)
+    GEAP->>Armor: sanitizeUserPrompt
+    Armor-->>GEAP: blocked / clean + risk signals
+    alt candidate passes perimeter
+      GEAP->>Target: invoke heterogeneous Gemini agent
+      Target-->>GEAP: answer + tool calls + privileged outcome
+    end
+    GEAP-->>Red: verdict + score + trace_id
+    Red->>DB: persist candidate + embedding + lineage
+  end
+  Red-->>API: confirmed winning bypass
+  API->>Machine: open_run(agent_id, payload_hash)
+  Machine->>DB: INSERT ON CONFLICT → durable BYPASS_FOUND
+  Machine->>DB: persist policy intent → HARDENING
+  Machine->>GEAP: enforce_policy(delta)
+  GEAP->>DB: INSERT policy_id ON CONFLICT
+  GEAP-->>Machine: applied / already_applied
+  Machine->>DB: commit VERIFYING
+  Machine->>Verify: spawn(run_id, class, fresh seed)
+  Verify->>DB: SELECT policy only
+  Verify->>GEAP: independently re-evolve + re-probe
+  GEAP->>Armor: test patched boundary
+  Armor-->>GEAP: guard verdict
+  GEAP->>Target: safe-behavior probe
+  Target-->>GEAP: outcome
+  GEAP-->>Verify: three independent signals
+  Verify->>DB: INSERT verification verdict
+  DB-->>Machine: CLOSED / FALSE_CLOSED / STILL_OPEN
+  Machine-->>API: certificate + trace waterfall
+  API-->>User: response + live SSE events
+

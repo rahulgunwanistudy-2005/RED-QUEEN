@@ -24,7 +24,7 @@ services:
       DATABASE_URL: postgresql+psycopg2://sentinel:sentinel@db:5432/sentinel
       SENTINEL_SERVER_URL: http://localhost:8000
     ports:
-      - "8099:8000"   # host 8099 -> container 8000
+      - "8099:8080"   # host 8099 -> Cloud Run-compatible container port 8080
 
 volumes:
   sentinel_pgdata:

@@ -122,6 +122,7 @@ def evolve(
     persist_finding: bool = True,
     warm_ops: tuple[str, ...] = (),
     emit: Emit | None = None,
+    agent_id: str | None = None,
 ) -> EvolveResult:
     """`persist_corpus`/`persist_finding` default True (the red-team campaign writes
     both). The FIREWALLED verifier (SOF-170) reuses this exact loop with BOTH False
@@ -139,7 +140,7 @@ def evolve(
     )
 
     def run_and_record(p: Payload) -> tuple[Payload, Outcome]:
-        o = fire(p, enforce=True, persist_finding=persist_finding)
+        o = fire(p, enforce=True, persist_finding=persist_finding, agent_id=agent_id)
         emit(_candidate_event(o, p))
         if persist_corpus:
             corpus.add(
@@ -153,6 +154,16 @@ def evolve(
                 trace_id=o.trace_id,
             )
         return p, o
+
+    # --- Gemma pre-seed (SESSION_8): genuinely fire Gemma-generated gen-0 payloads into
+    # the campaign — fired through the shared path + streamed as candidates, proving Gemma
+    # is live in the pipeline. Deliberately NOT added to the survivor pool OR the corpus the
+    # evolutionary search reads, so the deterministic ladder is byte-identical Gemma on/off.
+    # Gated on `persist_corpus` so the firewalled verifier (which sets it False) skips it.
+    if persist_corpus:
+        for gp in gemma.preseed(attack_class, seed=seed):
+            o = fire(gp, enforce=True, persist_finding=persist_finding, agent_id=agent_id)
+            emit(_candidate_event(o, gp))
 
     # --- gen 0: seed population (+ Memory Bank recall, SOF-174) --------------
     gen0 = gemma.generate(attack_class, seed=seed)

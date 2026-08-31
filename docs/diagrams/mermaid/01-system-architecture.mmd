@@ -1,0 +1,64 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#424846","lineColor":"#747b77","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart LR
+  subgraph EDGE["CLIENT + CONTROL PLANE"]
+    UI["RED//QUEEN Svelte UI<br/>one store · one SSE stream"]
+    CLI["Operator CLI<br/>demo + kill-9 proof"]
+    API["FastAPI control plane<br/>Cloud Run service"]
+    UI --> API
+    CLI --> API
+  end
+
+  subgraph PLANES["THREE AGENT PLANES"]
+    RED["RED TEAM<br/>Gemma seed generator<br/>deterministic mutation operators"]
+    BLUE["HARDENER<br/>policy synthesis<br/>durable reducer"]
+    GREEN["INDEPENDENT VERIFIER<br/>fresh mutations<br/>orthogonal sub-scores"]
+  end
+
+  subgraph SEAM["SINGLE GEAP SEAM · sentinel/platform/geap.py"]
+    SCAN["scan()"]
+    GEN["gemini_generate()"]
+    ENFORCE["enforce_policy()"]
+    TRACE["emit_trace()"]
+  end
+
+  subgraph GCP["GOOGLE CLOUD SERVICES"]
+    MA["Vertex Model Armor"]
+    GEMINI["Vertex Gemini 3.5<br/>global endpoint"]
+    MEMORY["Vertex Agent Engine<br/>Memory Bank"]
+    SQL["Cloud SQL PostgreSQL 16<br/>pgvector"]
+    BUS["Pub/Sub<br/>sentinel-events"]
+    OTEL["Cloud Trace<br/>OTel spans"]
+    RUNTIME["Cloud Run · Secret Manager<br/>Artifact Registry"]
+  end
+
+  API --> RED
+  RED -->|"confirmed bypass"| BLUE
+  BLUE -->|"policy under test"| GREEN
+  RED --> SCAN
+  RED --> GEN
+  BLUE --> GEN
+  BLUE --> ENFORCE
+  GREEN --> SCAN
+  GREEN --> GEN
+  RED --> TRACE
+  BLUE --> TRACE
+  GREEN --> TRACE
+
+  SCAN --> MA
+  GEN --> GEMINI
+  ENFORCE --> MA
+  TRACE --> OTEL
+  API <--> SQL
+  RED <--> MEMORY
+  API --> BUS
+  RUNTIME --> API
+
+  classDef red fill:#251211,stroke:#e34b43,color:#f7efed,stroke-width:2px;
+  classDef green fill:#102018,stroke:#85d8a5,color:#eff8f2,stroke-width:2px;
+  classDef seam fill:#171919,stroke:#e6b86a,color:#f4e8cf,stroke-width:2px;
+  classDef cloud fill:#121820,stroke:#78a9df,color:#eef5ff,stroke-width:1.5px;
+  class RED red;
+  class BLUE,SCAN,GEN,ENFORCE,TRACE seam;
+  class GREEN green;
+  class MA,GEMINI,MEMORY,SQL,BUS,OTEL,RUNTIME cloud;
+

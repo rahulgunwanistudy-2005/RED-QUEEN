@@ -1,0 +1,24 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#e34b43","lineColor":"#8c9490","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"}}}%%
+stateDiagram-v2
+  direction TB
+  [*] --> BYPASS_FOUND: confirmed bypass · UNIQUE(agent_id, payload_hash)
+  state "BYPASS_FOUND<br/>open idempotent run" as BYPASS_FOUND
+  state "HARDENING<br/>persist intent → apply delta" as HARDENING
+  state "AWAIT_APPROVAL<br/>destructive delta parked" as AWAIT_APPROVAL
+  state "VERIFYING<br/>firewalled subprocess" as VERIFYING
+  state "CLOSED<br/>3 / 3 guarantees pass" as CLOSED
+  state "FALSE_CLOSED<br/>seed blocked · mutation escapes" as FALSE_CLOSED
+  state "STILL_OPEN<br/>defense fails" as STILL_OPEN
+
+  BYPASS_FOUND --> HARDENING: policy intent committed first
+  HARDENING --> AWAIT_APPROVAL: destructive + not approved
+  AWAIT_APPROVAL --> HARDENING: approved · resume
+  AWAIT_APPROVAL --> AWAIT_APPROVAL: rejected · remain parked
+  HARDENING --> VERIFYING: policy_id UNIQUE · exactly-once apply
+  HARDENING --> HARDENING: kill -9 post-apply / pre-commit · replay no-op
+  VERIFYING --> CLOSED: armor ∧ behavior ∧ containment
+  VERIFYING --> FALSE_CLOSED: brittle patch detected
+  VERIFYING --> STILL_OPEN: exploit remains viable
+  CLOSED --> [*]
+  FALSE_CLOSED --> [*]
+  STILL_OPEN --> [*]

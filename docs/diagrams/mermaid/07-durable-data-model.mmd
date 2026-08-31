@@ -1,0 +1,89 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#090a0a","primaryColor":"#151818","primaryTextColor":"#f0f0eb","primaryBorderColor":"#e34b43","lineColor":"#8c9490","secondaryColor":"#1f1716","tertiaryColor":"#102018","fontFamily":"Inter, Arial, sans-serif"}}}%%
+erDiagram
+  FINDINGS ||--o| HARDENING_RUNS : "opens"
+  HARDENING_RUNS ||--o| POLICIES : "applies"
+  HARDENING_RUNS ||--o{ RUN_SPANS : "records"
+  HARDENING_RUNS ||--o{ VERIFICATIONS : "receives"
+  PAYLOAD_CORPUS o|--o{ PAYLOAD_CORPUS : "parent lineage"
+  AGENT_MEMORY ||--o{ HARDENING_RUNS : "warms campaign"
+
+  FINDINGS {
+    int id PK
+    string attack_class
+    text payload
+    boolean scan_blocked
+    float scan_score
+    string agent_action
+    boolean bypass
+    jsonb verdict
+    string trace_id
+  }
+
+  HARDENING_RUNS {
+    int id PK
+    string agent_id UK "IDEMPOTENCY KEY 1 of 2"
+    string payload_hash UK "IDEMPOTENCY KEY 2 of 2"
+    int finding_id
+    string attack_class
+    string state
+    text winning_payload
+    string policy_id
+    jsonb policy_intent
+    string verdict
+    jsonb sub_scores
+  }
+
+  POLICIES {
+    int id PK
+    string policy_id UK "EXACTLY-ONCE APPLY GUARD"
+    string agent_id
+    string attack_class
+    string target
+    string payload_hash
+    jsonb delta
+    boolean is_destructive
+    boolean applied
+  }
+
+  RUN_SPANS {
+    int id PK
+    int run_id
+    string phase
+    string name
+    string trace_id
+    float started_ms
+    float duration_ms
+    jsonb attributes
+  }
+
+  VERIFICATIONS {
+    int id PK
+    int run_id
+    string attack_class
+    string verdict
+    jsonb sub_scores
+    boolean seed_blocked
+    boolean evolved_bypass
+    string verify_trace_id
+    string backend
+  }
+
+  PAYLOAD_CORPUS {
+    int id PK
+    string attack_class
+    text payload
+    int generation
+    boolean bypass
+    vector embedding "768 dimensions"
+    jsonb operators
+    string parent_id
+    int score
+    string trace_id
+  }
+
+  AGENT_MEMORY {
+    string agent_id PK
+    jsonb profile
+    datetime updated_at
+  }
+

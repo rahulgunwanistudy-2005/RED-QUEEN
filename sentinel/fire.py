@@ -58,6 +58,7 @@ def fire(
     enforce: bool,
     authorized: bool = False,
     persist_finding: bool = True,
+    agent_id: str | None = None,
 ) -> Outcome:
     # Multimodal (SOF-173): render the hidden instruction (`content`) into the attack
     # image and present the BENIGN carrier text to the guardrail; `embedded_text` is
@@ -81,6 +82,7 @@ def fire(
         attack_class=payload.attack_class,
         image_png=image_png,
         embedded_text=embedded_text,
+        agent_id=agent_id,
     )
 
     if result.agent is None:  # scan blocked before reaching the agent
